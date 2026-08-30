@@ -130,6 +130,27 @@ Types utiles dans votre domaine : matériel, plateforme, émetteur, bande ou fr�
 
 Ce n'est **pas une ontologie** — aucune hiérarchie formelle de concepts. Ce n'est **pas une taxonomie exhaustive** — on ne référence que ce dont le corpus parle réellement. Ce n'est **pas un graphe** — pas de relations riches, un rattachement optionnel au plus. Et ce n'est **pas automatique** — la machine propose, l'humain arbitre.
 
+#### Situer les termes voisins
+
+Ces mots circulent ensemble et désignent des choses très différentes. Voici de quoi lire la suite sans s'interrompre.
+
+| Terme | En une phrase | Chez vous |
+|---|---|---|
+| **Glossaire** | Une liste de termes définis, écrite pour des humains. | Utile pour former les traitants, ne sert pas le système. |
+| **Vocabulaire contrôlé** | Une liste fermée de valeurs autorisées pour un champ. | Les valeurs de `strate`, `type`, `langue`. Déjà en place. |
+| **Référentiel d'entités** | La liste des *choses* dont le corpus parle, chacune avec un identifiant stable et tous ses alias. | **Phase 1 — la pièce maîtresse.** |
+| **Résolution d'entités** | Le travail qui décide que deux mentions désignent la même chose. | Continu : la machine propose, l'humain arbitre. |
+| **Thésaurus** | Un vocabulaire contrôlé enrichi de relations de synonymie et de hiérarchie. | Le référentiel avec ses alias en fait déjà l'essentiel. |
+| **Taxonomie** | Un classement en arbre : chaque chose a une place, et une seule. | Une liste plate d'une dizaine de types suffit. Pas d'arbre profond. |
+| **Facettes** | Plusieurs axes de classement indépendants appliqués en même temps. | **Votre filtrage par strate, cotation, langue, entité. Déjà en place.** |
+| **Graphe** | Des nœuds reliés par des arêtes. Une structure de données, rien de plus. | **Le graphe de collecte, en phase 1.** |
+| **Graphe de connaissances** | Un graphe dont les nœuds sont les entités du référentiel et les arêtes des relations typées. | Différé, sur déclencheur. |
+| **Ontologie** | Un modèle formel des *types* de choses et des règles logiques permettant d'inférer des faits non écrits. | **À éviter** — effort considérable, bénéfice non démontré à votre échelle. |
+
+Ces objets forment un **empilement** : chacun ne fonctionne que si celui du dessous existe. On ne fait pas d'ontologie sans référentiel, ni de référentiel sans métadonnées. **L'erreur classique est de commencer par le haut** — c'est intellectuellement plus satisfaisant, et ça ne produit rien : on obtient un schéma élégant que rien n'alimente. Les étages du haut se recalculent, ceux du bas non.
+
+Le détail de chaque concept, leur articulation et le parcours d'un document à travers les couches font l'objet d'une **annexe dédiée**.
+
 ### Comment le construire sur 400 documents
 
 1. Passer les 400 documents au petit modèle avec la consigne : « liste les désignations de matériels, unités, acteurs et programmes ».
