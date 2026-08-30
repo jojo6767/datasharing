@@ -396,6 +396,60 @@ Les niveaux 3 et 4 sont à écarter en phase 1, non pour une question de coût m
 | Réordonnancement | bge-reranker-v2-m3 | ~1 Go | Empêche un post de réseau social de passer devant un manuel technique. |
 | Transcription | **Whisper large-v3** | ~3 Go | Couvre français, anglais, russe, ukrainien sans réserve. |
 
+### Faut-il un modèle plus gros ?
+
+D'abord une précision de vocabulaire, parce qu'elle porte toute la réponse : **96 Go, c'est de la mémoire, pas des paramètres.** Il n'existe pas de « Qwen 96B ». La vraie question est : quels modèles la RTX PRO 6000 permettrait-elle de charger, et seraient-ils meilleurs sur ce que vous visez ?
+
+#### Le chiffre qui compte n'est pas le total, c'est l'actif
+
+Depuis mi-2026, l'architecture dominante au-dessus de 35 milliards de paramètres est le **mélange d'experts** : le modèle en contient beaucoup, mais n'en active qu'une fraction par token. Un routeur choisit quelques experts, le reste dort.
+
+- **Paramètres totaux** → étendue des connaissances mémorisées
+- **Paramètres actifs par token** → **profondeur du raisonnement et finesse de génération**
+
+C'est la seconde ligne que vous visez.
+
+| Modèle | Total | Actif par token | Tient en 96 Go ? |
+|---|---|---|---|
+| **Qwen 3.8-27B — dense** | 27B | **27B** | oui, largement |
+| Qwen3-Coder-Next | 80B | 3B | oui |
+| gpt-oss-120b | 120B | ~5B | oui |
+| DeepSeek V4-Flash | 284B | 13B | non — ~150 Go en Q4 |
+| Hunyuan-Large | 389B | 52B | non — ~200 Go en Q4 |
+| Llama 3.3 70B — dense | 70B | 70B | oui, en Q8 |
+
+**Le constat est contre-intuitif : la plupart des gros modèles qui tiendraient en 96 Go activent moins de paramètres par token que votre 27B dense.** Un 80B-A3B fait travailler trois milliards de paramètres là où le 27B en fait travailler vingt-sept. Sur du raisonnement complexe, ce serait une régression, pas un gain.
+
+Les seuls candidats qui en activent davantage sont les denses de 70B — mais ce sont des modèles de génération 2024. **Une génération vaut plus qu'un facteur de taille** : un 27B de 2026 bat généralement un 70B de 2024 sur le raisonnement.
+
+**Conclusion : il n'existe pas aujourd'hui de modèle qui tienne en 96 Go et batte clairement Qwen 3.8-27B sur vos deux critères.** La RTX PRO 6000 vous achèterait la capacité de charger des modèles qui, pour votre usage précis, seraient au mieux équivalents.
+
+#### Ce qui améliorerait vraiment le raisonnement et la rédaction
+
+Trois leviers, tous moins chers que 7 400 €, tous disponibles sur les 32 Go du 5090.
+
+**1 · Monter la quantisation.** C'est le plus important, et vous l'avez déjà payé.
+
+| Quantisation | Poids | Reste pour le cache | Effet |
+|---|---|---|---|
+| Q4 | ~18 Go | ~14 Go | référence |
+| **Q6** | **~22 Go** | **~10 Go** | **gain net sur la nuance** |
+| Q8 | ~29 Go | ~3 Go | marginal face au Q6, contexte contraint |
+
+La dégradation du Q4 se manifeste précisément là où vous êtes exigeant — **la nuance, le registre, la cohérence sur un texte long** — et beaucoup moins sur la restitution factuelle. Passer en Q6 est le meilleur usage de vos 32 Go, et c'est gratuit. C'est aussi ce qui justifie le petit GPU de service : en déportant l'embedding, le réordonnanceur et l'ASR, il libère la carte entière pour le seul modèle de dialogue.
+
+**2 · Augmenter l'effort de raisonnement.** Qwen 3.8-27B permet de régler la profondeur de réflexion. Laisser le modèle réfléchir plus longtemps sur une question difficile rapporte davantage qu'un modèle plus gros qui réfléchit vite. Le coût est en secondes, pas en euros ni en VRAM.
+
+**3 · Lui montrer votre style.** Pour l'aide à la rédaction en français, quelques exemples de vos propres écrits en amorce font plus que n'importe quel écart de taille. Un modèle ne connaît pas votre registre tant qu'on ne le lui a pas montré.
+
+#### Comment trancher sans dépenser
+
+Vous aurez un jeu d'évaluation de 40 questions. Faites tourner le 27B en Q6 dessus et regardez les deux catégories qui vous intéressent : confrontation chaud/froid et synthèse rédactionnelle. **S'il échoue, vous aurez une preuve. S'il passe, vous aurez économisé 7 400 €.**
+
+Vous pouvez même comparer avant d'acheter : le raisonnement complexe et la finesse rédactionnelle se testent sur du matériau ouvert — documentation technique publique, principes scientifiques — donc sans jamais engager le corpus sensible.
+
+Et l'argument qui tient réellement en faveur de la RTX PRO 6000, c'est **la pérennité** : si un dense de 50 à 70B de génération 2026-2027 paraît, 96 Go le feront tourner. C'est réel, mais c'est un pari — et votre réserve de 1 300 à 5 800 €, dans un marché qui doit se détendre, vous permet de le prendre plus tard, mieux informé et probablement moins cher.
+
 Plafonnez le contexte de session à **32K–64K** : les 262K sont un argument commercial, au-delà la latence de préremplissage remonte et la qualité ne suit pas.
 
 | Couche | Choix | Pourquoi |
