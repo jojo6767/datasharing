@@ -1,391 +1,375 @@
-# Déploiement d'un LLM local sur site — analyse et propositions
+# Panoptes et sa couche générative — note d'architecture
 
-*Note d'architecture — août 2026 — révision 2*
+*Révision 3 — 30 août 2026 — enveloppe 20 000 € TTC, périmètre complet*
 
-> **Révision 2.** Trois éléments nouveaux ont été intégrés : le budget porte sur le matériel seul (l'accompagnement est bénévole) ; la composition du corpus est précisée et s'avère structurante ; le sas d'import est traité hors périmètre, par agents. La position sur les graphes de connaissances a été révisée en conséquence — voir §07.
+> **Ce qui change en révision 3.** Le périmètre est désormais complet : les 20 000 € couvrent le stockage du corpus, l'indexation, la couche générative et la sécurisation de l'ensemble. La collecte est assurée par la **TF EYLAU** sur des outils connectés, puis versée dans **Panoptes** par franchissement de rupture. Le corpus est multimodal — texte, images, vidéos, fiches matérielles structurées, métadonnées de réseau. Trois positions sont révisées : le contrat d'interface du franchissement devient le point critique (§02), la position sur les graphes se dédouble (§05), et le second GPU sort de l'enveloppe (§07).
 
 ---
 
-## 0. Trois corrections préalables, avant tout chiffrage
+## 0. Les invariants — ce qui ne bouge plus
 
-### 0.1 Qwen 3.8-Max n'est pas déployable chez vous
+Trois points établis aux révisions précédentes et qui restent vrais.
 
-Qwen 3.8-Max est un modèle à **2 400 milliards de paramètres**. Alibaba en a publié les poids — il est donc *techniquement* téléchargeable, contrairement à Qwen 3.7-Max qui était strictement API. Mais l'ordre de grandeur matériel est sans rapport avec votre budget :
+**Qwen 3.8-Max reste hors d'atteinte.** 2 400 milliards de paramètres, ~1,2 To de poids en 4 bits, 150 000 à 400 000 € de matériel. La cible est **Qwen 3.8-27B** — et votre préférence pour la famille Qwen est bien fondée : voir §08, ce modèle est le meilleur choix disponible pour ce dispositif, pour des raisons qui vont au-delà de ses performances générales.
 
-| Quantisation | Poids seuls | Matériel minimal | Coût indicatif |
+**Le marché matériel est à un pic historique.** DRAM +90 % au T1 2026 puis +58 % au T2, Apple a retiré ses options 256 et 512 Go, la RTX 5090 se négocie vers 4 200 $ contre 1 999 $ annoncés. Normalisation attendue en 2027-2028. Toute cotation a une validité de quatre semaines.
+
+**Un seul nœud de calcul, plusieurs clients légers.** L'inférence répartie sur Ethernet ne fonctionne pas ; la puissance s'additionne dans un châssis, par le bus PCIe.
+
+Et l'invariant de conception : **pour un usage documentaire, la latence de préremplissage prime sur la taille du modèle.** NVIDIA est 3 à 8 fois plus rapide qu'Apple Silicon sur cette phase, ce qui donne 1 à 3 secondes avant le premier mot au lieu de 40 à 70. C'est le facteur qui décide de l'adoption.
+
+---
+
+## 1. Le dispositif d'ensemble
+
+```
+  ══════════════ ZONE CONNECTÉE ══════════════
+   ┌──────────────────────────────────────┐
+   │  TF EYLAU — collecte                 │
+   │  réseaux sociaux, publications,      │
+   │  sites, médias                       │
+   └──────────────────┬───────────────────┘
+                      │
+                      │  LOT NORMALISÉ
+                      │  contenu + manifeste + empreintes
+  ════════════════════╪═══ RUPTURE ════════════════════
+                      │
+  ══════════════ ZONE ISOLÉE ══════════════
+   ┌──────────────────┴───────────────────┐
+   │  RÉCEPTION — contrôle, quarantaine,  │
+   │  vérification du manifeste           │
+   └──────────────────┬───────────────────┘
+                      │
+   ┌──────────────────┴───────────────────────────────┐
+   │  PANOPTES — le corpus et ses index               │
+   │                                                  │
+   │   ① documents      ② index vectoriel + lexical   │
+   │      markdown         Qdrant                     │
+   │      + médias                                    │
+   │                                                  │
+   │   ③ base relationnelle  ④ graphe de collecte     │
+   │      fiches matérielles    comptes, reprises,    │
+   │      catalogue             propagation           │
+   └──────────────────┬───────────────────────────────┘
+                      │  outils (tool-calling)
+   ┌──────────────────┴───────────────────┐
+   │  COUCHE GÉNÉRATIVE                   │
+   │  Qwen 3.8-27B + embedding + reranker │
+   │  + ASR · orchestration · garde-fous  │
+   └──────────────────┬───────────────────┘
+                      │
+   ┌──────────────────┴───────────────────┐
+   │  3 POSTES TRAITANTS — navigateur     │
+   └──────────────────────────────────────┘
+```
+
+Le point important de ce schéma : **Panoptes n'est pas une base, c'est quatre magasins de natures différentes**, et la couche générative les atteint par des outils distincts, pas par un unique canal de recherche vectorielle. Voir §04.
+
+---
+
+## 2. Le contrat d'interface du franchissement — le point critique
+
+C'est la décision la plus urgente de tout le dossier, et la seule qui soit vraiment irrattrapable.
+
+La TF EYLAU collecte d'un côté, Panoptes reçoit de l'autre, et entre les deux il y a une rupture. **Tout ce qui n'est pas écrit dans le lot au moment du franchissement est définitivement perdu** : vous ne pourrez pas revenir interroger l'outil de collecte, et pour la strate chaude, la source elle-même aura souvent disparu.
+
+Conséquence directe : le livrable de la TF EYLAU n'est pas « des fichiers ». C'est un **lot normalisé**, dont le format doit être arrêté maintenant, avant que la TF EYLAU n'outille sa collecte. Un format défini après coup impose une recollecte — c'est-à-dire, sur la strate chaude, une perte sèche.
+
+### Structure d'un lot
+
+```
+LOT-2026-08-30-001/
+├── bordereau.txt          émetteur, date, volume, périmètre, visa
+├── manifeste.jsonl        une ligne = un document = l'enveloppe complète
+├── empreintes.sha256      intégrité de chaque fichier
+└── contenu/
+    ├── doc-2026-08-30-0001.md
+    ├── doc-2026-08-30-0002.jpg
+    └── doc-2026-08-30-0003.mp4
+```
+
+### Une ligne de manifeste
+
+```json
+{
+  "id": "doc-2026-08-30-0001",
+  "fichier": "contenu/doc-2026-08-30-0001.md",
+  "media_type": "texte",
+  "strate": "reseau_social",
+  "temperature": "chaud",
+  "source_uri": "https://…",
+  "source_plateforme": "…",
+  "acteur": "compte ou organisme émetteur",
+  "acteur_id": "ACT-0231",
+  "date_pub": "2026-08-29T14:22:00Z",
+  "date_collecte": "2026-08-30T06:10:00Z",
+  "fiabilite_src": "C",
+  "fiabilite_info": "3",
+  "langue": "ru",
+  "entites": ["ENT-0412"],
+  "relations_collecte": [
+    {"type": "reprise_de", "cible": "doc-2026-08-28-0117"},
+    {"type": "publie_par", "cible": "ACT-0231"}
+  ],
+  "classification": "…",
+  "hash": "sha256:…"
+}
+```
+
+Quatre champs méritent qu'on s'y arrête, parce que ce sont eux qu'on oublie et qu'on ne récupère jamais.
+
+**`date_pub` distincte de `date_collecte`.** Un post republié aujourd'hui mais écrit il y a trois ans n'a pas le même statut. Sans les deux dates, vous ne pouvez pas dater un fait.
+
+**`acteur_id` et non seulement `acteur`.** Un identifiant stable, réconcilié côté TF EYLAU, permet de suivre un compte qui change de nom. Un simple nom d'affichage ne le permet pas.
+
+**`fiabilite_src` et `fiabilite_info`.** La cotation à double entrée classique. Elle doit être posée **au moment de la collecte**, par qui connaît la source. Reconstituée six mois plus tard par quelqu'un d'autre, elle ne vaut rien. C'est deux caractères par document, et c'est ce qui rend l'usage *debunk* possible.
+
+**`relations_collecte`.** Qui reprend qui, qui publie quoi. C'est de la donnée de graphe **native**, disponible gratuitement au moment de la collecte et irrécupérable après. Voir §05.
+
+### Ce qu'il faut faire cette semaine
+
+Écrire ce format, le soumettre à la TF EYLAU, et le figer d'un commun accord **avant** qu'ils n'industrialisent leur collecte. C'est une demi-journée de travail qui conditionne tout le reste. Une interface entre deux organisations est la chose la plus coûteuse à changer une fois qu'elle tourne.
+
+---
+
+## 3. Le corpus : quatre strates × quatre natures
+
+Les strates gouvernent la **confiance**, les natures gouvernent le **traitement**. Les deux axes sont indépendants et il faut les traiter séparément.
+
+| Strate | Contenu | Température | Validité | Fiabilité |
+|---|---|---|---|---|
+| Principes scientifiques | physique, propagation, traitement du signal | froide | décennies | très haute, vérifiable |
+| Documentation technique | fiches matérielles, manuels, spécifications | froide à tiède | années | haute, traçable |
+| Doctrine et RETEX | enseignements, doctrine d'emploi | tiède | mois à années | haute mais contextuelle |
+| Réseaux sociaux | annonces, revendications, images, vidéos | chaude | jours | variable à nulle |
+
+Ces quatre strates ne peuvent pas vivre dans un index indifférencié. Si un principe de propagation et une revendication non sourcée d'hier sont deux vecteurs voisins dans la même base, le modèle les traite comme deux extraits de même statut, et produit une synthèse qui mélange un invariant physique et une affirmation d'acteur — sans le signaler, parce que rien dans les données ne le lui permet.
+
+**Pour vos usages de critique et de *debunk*, c'est l'inverse de ce que vous cherchez : l'outil deviendrait un amplificateur de rumeur avec l'accent de l'autorité.**
+
+Vos deux usages à plus forte valeur reposent sur le même mouvement : **confronter une assertion chaude à un référentiel froid**. Le système doit pouvoir dire « ceci est revendiqué par tel compte le tel jour, coté C3 ; cela contredit tel principe établi dans telle source cotée A1 ». C'est de la mise en regard, pas de la synthèse. Et cela n'est possible que si le filtrage par strate et par cotation intervient **avant** le classement des résultats.
+
+---
+
+## 4. Traiter chaque nature de donnée
+
+C'est ici que se joue la différence entre un système qui marche et une démonstration qui impressionne trois semaines.
+
+### Texte et documents — le cas nominal
+
+Markdown en entrée, segmentation **par titre** grâce au `heading_path` que le markdown préserve, restitution du chemin complet du titre au modèle. Un PDF converti en texte brut perd cette hiérarchie et oblige à découper à l'aveugle par nombre de caractères. Votre choix du markdown natif est un vrai gain de pertinence, à coût nul.
+
+### Images — Qwen s'en charge
+
+Qwen 3.8-27B embarque un encodeur visuel de 27 couches avec compréhension native de l'image. Concrètement : description automatique par lots de nuit, indexation de la description, et possibilité pour le traitant de poser une question directement sur une image. **Un seul poids à charger pour le texte et l'image** — c'est le principal argument technique en faveur de ce modèle dans votre dispositif.
+
+### Vidéo — incluse, mais avec un traitement précis
+
+Vous demandiez si la vidéo est « trop problématique ». Réponse : **non pour le stockage, oui si vous la traitez naïvement.**
+
+Le piège serait de vouloir « comprendre » la vidéo de bout en bout. Le bon traitement est de l'exploiter par ses dérivés :
+
+```
+vidéo.mp4
+   ├─► transcription horodatée      (Parakeet-TDT v3)
+   ├─► images-clés par changement de plan  (détection de coupe)
+   │      └─► description de chaque image-clé  (Qwen 3.8-27B, par lots)
+   └─► la vidéo brute reste une pièce jointe, jamais dans le contexte
+```
+
+On indexe la transcription et les descriptions, chacune horodatée, ce qui permet de pointer vers l'instant précis. La vidéo elle-même n'entre jamais dans le contexte du modèle — elle est consultée par le traitant, à la seconde indiquée.
+
+**Sur l'ASR** : Parakeet-TDT-0.6B-v3 est environ 49 fois plus rapide que Whisper large-v3 pour un taux d'erreur inférieur, ce qui compte quand on traite des heures de vidéo par lots. Sa couverture linguistique est en revanche plus étroite : **gardez Whisper large-v3 en voie de secours pour les langues qu'il ne couvre pas** — à vérifier contre vos langues cibles réelles avant de figer la chaîne.
+
+**Sur le stockage** : la vidéo représentera environ 90 % du volume pour une fraction marginale de la valeur analytique par octet. C'est une raison de lui appliquer une **politique de rétention** distincte du reste — les dérivés textuels sont légers et se gardent indéfiniment, la vidéo brute peut être purgée au-delà d'une fenêtre.
+
+### Fiches matérielles — surtout pas dans l'index vectoriel
+
+C'est l'erreur la plus coûteuse et la plus fréquente.
+
+Une fiche matérielle est une **table**. À la question « quelle est la bande de tel matériel », le système doit **lire une ligne**, pas retrouver un fragment de texte qui parle de bandes. La recherche vectorielle sur des données tabulaires donne des réponses plausibles et fausses : elle ramène la fiche d'un matériel voisin, ou une valeur d'une autre colonne.
+
+Le bon traitement : une **base relationnelle**, et un outil que le modèle appelle pour l'interroger. Le modèle formule la requête, lit le résultat, et le cite. C'est déterministe, vérifiable, et incomparablement plus fiable.
+
+### Métadonnées de réseau — de la donnée de graphe native
+
+Voir §05 : c'est ce qui fait évoluer ma position.
+
+---
+
+## 5. Les deux graphes — position à nouveau révisée
+
+En révision 2, je vous disais : le graphe est un artefact dérivé, faites le schéma et le référentiel maintenant, différez le moteur. Vous m'aviez opposé un risque de dette technique. La réponse tenait à la distinction entre données primaires et artefacts dérivés.
+
+**Votre indication que Panoptes reçoit des métadonnées de réseau change cette réponse à moitié.** Il n'y a pas un graphe, il y en a deux, de natures opposées.
+
+| | Graphe de collecte | Graphe sémantique |
+|---|---|---|
+| Nœuds | comptes, publications, médias | matériels, acteurs, programmes, concepts |
+| Arêtes | publie, reprend, cite, répond | emploie, contredit, dérive de, s'observe avec |
+| Origine | **native** — capturée à la collecte | **dérivée** — extraite des documents par le LLM |
+| Coût de constitution | quasi nul, c'est du transport | élevé, extraction + validation |
+| Si omis au départ | **perte définitive** | recalculable |
+| Décision | **faire dès le jour 1** | **différer, sur déclencheur** |
+
+**Le graphe de collecte se fait maintenant.** Il ne s'extrait pas, il se transporte : les relations « publié par », « reprise de », « en réponse à » sont connues de la TF EYLAU au moment de la collecte et disparaissent ensuite. Les stocker dans une base graphe plutôt que dans des colonnes coûte le prix du bon choix de magasin, rien de plus. Et il porte directement des questions que vous voudrez poser : qui a lancé cette affirmation, par quelle chaîne s'est-elle propagée, quels comptes reprennent systématiquement quels autres.
+
+**Le graphe sémantique reste différé.** Il exige extraction d'entités et de relations, schéma, résolution d'entités, maintenance. Le mode d'échec dominant de ces projets est de figer un schéma de relations à l'aveugle sur un corpus qu'on n'a pas encore vu, puis de découvrir que les relations utiles n'étaient pas celles-là.
+
+Ce qui se fait en revanche dès la phase 1, et qui coûte peu : **le référentiel d'entités**. Une table plate, les 100 à 200 entités qui comptent dans votre domaine, avec leurs alias. Chaque document ingéré est étiqueté contre elle. Cela vous donne immédiatement la recherche filtrée par entité, et cela pose les nœuds du graphe sémantique futur. Quand vous déciderez de le construire, il ne manquera que les arêtes — semaines de travail au lieu de mois.
+
+**Le déclencheur** : quand votre jeu d'évaluation contient une classe de questions à sauts multiples que la recherche filtrée échoue systématiquement à traiter. D'où l'intérêt d'y mettre cinq questions de ce type dès le départ, comme détecteur.
+
+---
+
+## 6. Comment le modèle atteint les données
+
+Panoptes ayant quatre magasins, l'assistant ne doit pas avoir un seul canal de recherche mais **un jeu d'outils**. Qwen 3.8-27B est bon sur l'appel d'outils, c'est ce qui rend ce schéma praticable.
+
+| Outil | Ce qu'il fait | Magasin |
+|---|---|---|
+| `chercher_documents` | recherche hybride, filtrée par strate, fiabilité, entité, fenêtre de dates | index vectoriel + lexical |
+| `interroger_fiches` | requête structurée sur les caractéristiques matérielles | base relationnelle |
+| `explorer_reseau` | qui publie, qui reprend, chaîne de propagation | graphe de collecte |
+| `lire_document` | restitution intégrale d'un document identifié | fichiers |
+| `chercher_media` | recherche sur descriptions d'images et transcriptions | index, filtré sur média |
+
+L'intérêt dépasse la propreté architecturale. Un modèle qui appelle `interroger_fiches` et cite une ligne de table est **vérifiable** ; un modèle qui paraphrase un fragment retrouvé par similarité ne l'est pas. Pour un usage de *debunk*, cette différence est la valeur du système.
+
+**Règle de restitution, à imposer dans le prompt système** : tout extrait présenté au modèle arrive avec sa strate et sa cotation, et toute réponse restitue la cotation avec la citation. Un extrait coté C3 ne doit jamais apparaître dans une réponse comme un fait établi.
+
+---
+
+## 7. Ventilation budgétaire — 20 000 € TTC, périmètre complet
+
+Vous m'avez dit ne pas comprendre mon découpage précédent. Il était fait par scénario matériel ; celui-ci est fait par **fonction**, et il couvre tout ce que vous avez énuméré.
+
+| # | Fonction | Ce que ça paie | Montant |
 |---|---|---|---|
-| 4 bits | ~1,2 To | ~10 machines à 128 Go chaînées, ou un nœud serveur HBM | 150 000 – 400 000 € |
-| 8 bits | ~2,4 To | nœud datacenter multi-GPU | > 500 000 € |
-
-**Le bon modèle dans la même famille, c'est Qwen 3.8-27B** : dense, ~27 milliards de paramètres, contexte 256K, encodeur visuel intégré, licence Apache 2.0. Il tient dans **17 à 19 Go en 4 bits**, soit une seule carte. Les évaluations publiées le placent au niveau de modèles 10 à 15 fois plus gros.
-
-### 0.2 Le marché matériel traverse une crise mémoire historique
-
-- Prix contrat DRAM : **+90 à 95 % au T1 2026**, puis **+58 à 63 % au T2**.
-- **Apple a retiré les options 512 Go (mars 2026) puis 256 Go (mai 2026)** du Mac Studio M3 Ultra. Le haut de gamme Apple plafonne à **96 Go**.
-- La RTX 5090 se négocie autour de **4 200 $** contre 1 999 $ de tarif public initial.
-- La RTX PRO 6000 Blackwell 96 Go est passée à **13 250 $**, soit +55 % en 16 mois.
-- Le Mac Studio M5 est **repoussé à octobre 2026 au mieux**, à cause de la pénurie mémoire.
-- Retour à la normale attendu **en 2027-2028**.
-
-La stratégie « beaucoup de mémoire unifiée pour loger un très gros modèle » n'est plus disponible à l'achat neuf.
-
-### 0.3 « Plusieurs ordinateurs branchés en série » ne fonctionne pas
-
-L'inférence répartie sur Ethernet existe (llama.cpp RPC, exo, parallélisme de pipeline vLLM), mais la latence réseau entre couches du modèle détruit le débit. **Un seul nœud de calcul, plusieurs clients légers.** La puissance s'additionne dans un châssis, par le bus PCIe, pas sur un câble.
-
----
-
-## 1. Ce que vous cherchez réellement à dimensionner
-
-Vous avez formulé le besoin en nombre de paramètres. Ce n'est pas la variable qui décidera de votre satisfaction. Trois grandeurs comptent, dans cet ordre.
-
-**1. Le temps avant le premier mot.** Une requête RAG, c'est votre question *plus* 10 000 à 30 000 tokens d'extraits injectés. Le modèle lit tout cela avant d'écrire son premier caractère. Cette phase de préremplissage est limitée par le **calcul brut**, pas par la bande passante mémoire — et c'est la faiblesse structurelle d'Apple Silicon (NVIDIA y est 3 à 8 fois plus rapide). Comptez **40 à 70 s** sur un Mac Studio chargé d'un gros modèle, contre **1 à 3 s** sur une station NVIDIA avec un 27B. C'est le facteur qui décide de l'adoption.
-
-**2. La qualité de la recherche documentaire.** Un 27B alimenté par une recherche propre bat un 235B alimenté par une recherche approximative. Le modèle ne raisonne pas sur ce qu'on ne lui a pas donné.
-
-**3. La taille du modèle.** Rendement décroissant, coût matériel explosif.
-
-**Traduction : achetez la latence la plus basse sur un très bon modèle moyen, et investissez la différence dans la structuration du corpus.**
-
----
-
-## 2. Le corpus est à quatre températures — c'est le fait structurant
-
-Vous avez précisé la composition visée :
-
-| Strate | Contenu | Température | Durée de validité | Fiabilité typique |
-|---|---|---|---|---|
-| **Principes scientifiques** | physique, propagation, traitement du signal | **froide** | décennies | très haute, vérifiable |
-| **Documentation technique** | caractéristiques, manuels, spécifications | **froide à tiède** | années | haute, traçable |
-| **Doctrine et RETEX** | enseignements, doctrine d'emploi | **tiède** | mois à années | haute mais contextuelle |
-| **Réseaux sociaux** | annonces, revendications, images, rumeurs | **chaude** | jours | variable à nulle |
-
-C'est l'information la plus importante que vous m'ayez donnée, et elle a une conséquence directe : **ces quatre strates ne peuvent pas vivre dans un index indifférencié.**
-
-Si un principe de propagation et une revendication non sourcée publiée hier sont deux vecteurs voisins dans la même base, le modèle les traitera comme deux extraits de même statut. Il produira une synthèse qui mélange un invariant physique et une affirmation d'acteur — sans le signaler, parce que rien dans les données ne lui permet de faire la différence. Pour vos usages de critique et de *debunk*, c'est exactement l'inverse de ce que vous cherchez : **l'outil deviendrait un amplificateur de rumeur avec l'accent de l'autorité.**
-
-La parade n'est pas un meilleur modèle. C'est une **enveloppe de métadonnées appliquée dès l'ingestion**, et un étage de recherche qui sait filtrer et pondérer dessus. Voir §04.
-
-### Conséquence sur les usages
-
-| Usage | Strates mobilisées | Exigence dominante |
-|---|---|---|
-| Pertinence d'une idée | froide + tiède | profondeur, contradiction |
-| Idéation | toutes | rappel large, associations |
-| Aide à la rédaction | froide + tiède | fidélité, citation |
-| Avis sur une annonce publique | chaude, confrontée à froide | **fraîcheur + traçabilité** |
-| Debunk technique | chaude, confrontée à froide | **cotation de source, séparation stricte** |
-
-Les deux derniers usages — ceux qui font la valeur du système — sont précisément ceux qui exigent que la séparation des strates soit rigoureuse. Ils reposent tous deux sur le même mouvement : **confronter une assertion chaude à un référentiel froid.** Le système doit pouvoir dire « ceci est revendiqué par tel compte le tel jour ; cela contredit tel principe établi dans telle source ». C'est un travail de mise en regard, pas de synthèse.
-
----
-
-## 3. Architecture logique
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  5. POSTES TRAITANTS — écran + clavier + navigateur     │
-│     verrouillé, aucun calcul local                      │
-└───────────────────────┬─────────────────────────────────┘
-                        │  Ethernet Cat6a (plancher technique)
-                        │  VLAN dédié, switch managé
-┌───────────────────────┴─────────────────────────────────┐
-│  4. INTERFACE — Open WebUI : comptes, droits,           │
-│     historique, citations avec cotation de source       │
-├─────────────────────────────────────────────────────────┤
-│  3. ORCHESTRATION RAG                                   │
-│     filtrage par strate/fraîcheur/fiabilité             │
-│     → recherche hybride → réordonnancement              │
-│     → construction du contexte (strates séparées)       │
-├─────────────────────────────────────────────────────────┤
-│  2. INDEX — Qdrant, payload = enveloppe complète        │
-│     + référentiel d'entités                             │
-├─────────────────────────────────────────────────────────┤
-│  1. INFÉRENCE — vLLM : modèle de dialogue               │
-│     + petit modèle d'extraction + embedding + reranker  │
-└─────────────────────────────────────────────────────────┘
-         ▲
-         │
-┌────────┴────────────────────────────────────────────────┐
-│  0. INGESTION — sources → markdown → enveloppe →        │
-│     segmentation par titres → étiquetage d'entités      │
-│     (agents — hors périmètre de la présente note)       │
-└─────────────────────────────────────────────────────────┘
-```
-
-Le sas d'import et la collecte agentique sont traités hors de cette note, selon votre indication. Deux points d'interface subsistent néanmoins, et ils sont contraignants : **l'enveloppe de métadonnées que la chaîne d'ingestion doit produire** (§04), et **le risque d'injection indirecte** que la collecte automatisée introduit (§10).
-
----
-
-## 4. L'enveloppe de métadonnées — la vraie décision irréversible
-
-C'est le cœur de la révision 2, et la réponse à votre inquiétude sur la dette technique.
-
-### Enveloppe au niveau du document
-
-```yaml
-id:             doc-2026-08-19-0043     # stable, jamais réattribué
-source_uri:     https://… | file://…
-strate:         principe | technique | doctrine_retex | reseau_social
-temperature:    froid | tiede | chaud
-acteur:         auteur, organisme ou compte émetteur
-date_pub:       2026-05-14              # date de la source
-date_ingest:    2026-08-19              # date d'entrée au corpus
-fiabilite_src:  A…F                     # cotation de la source
-fiabilite_info: 1…6                     # cotation de l'information
-classification: <votre grille>
-langue:         fr | en | ru | …
-entites:        [ENT-0412, ENT-0088]    # renvoi au référentiel
-hash:           sha256                  # doublons et révisions
-```
-
-La cotation à double entrée (source / information) est le schéma classique du renseignement. Elle vous coûte deux caractères par document et elle est ce qui rend l'usage *debunk* possible : sans elle, le système ne peut pas dire « cette affirmation vient d'un compte non évalué et contredit une source technique cotée B2 ». Avec elle, c'est une simple contrainte de restitution.
-
-### Enveloppe au niveau du fragment
-
-```yaml
-chunk_id:     doc-2026-08-19-0043#007
-doc_id:       doc-2026-08-19-0043
-heading_path: ["2. Architecture", "2.3 Chaîne de réception"]
-entites:      [ENT-0412]
-```
-
-`heading_path` est **gratuit parce que vous passez en markdown**. C'est un bénéfice réel de votre choix, et il faut le nommer : un PDF converti en texte brut perd sa hiérarchie, ce qui oblige à segmenter à l'aveugle par nombre de caractères. Un markdown propre permet de segmenter **par titre**, donc de produire des fragments qui correspondent à des unités de sens, et de restituer au modèle le chemin complet du titre. Le gain de pertinence est important et il ne coûte rien.
-
-### Le référentiel d'entités
-
-Une table plate, tenue dès le premier jour :
-
-```
-ENT-0412 | <désignation> | type=capteur | alias=[…] | premiere_vue=2024-03 | statut=confirmé
-ENT-0088 | <désignation> | type=acteur  | alias=[…] | premiere_vue=2023-11 | statut=hypothèse
-```
-
-Types utiles dans votre domaine : matériel, plateforme, émetteur, bande/fréquence, unité, acteur, programme, doctrine, lieu.
-
-**C'est l'objet le plus important de tout le système**, et c'est celui qui coûte le moins cher à démarrer : un fichier tabulaire ou un ensemble de notes suffit au début. Chaque document ingéré est étiqueté contre ce référentiel. À partir de là, vous obtenez immédiatement deux choses :
-
-1. **Une recherche filtrée** — « tout ce qui concerne ENT-0412, strates froide et tiède uniquement » — sans aucun graphe. C'est déjà un gain de pertinence considérable.
-2. **La moitié du graphe, sans l'avoir construit.** Les nœuds sont là. Il ne manquera que les arêtes.
-
----
-
-## 5. Topologies
-
-### Topologie A — socle simple, un accès (pilote)
-
-```
-   ┌──────────────────────┐
-   │   NŒUD DE CALCUL     │        ┌─────────────────┐
-   │  Inférence + index   │───────►│  POSTE TRAITANT │
-   │  + interface web     │  RJ45  │  écran+clavier  │
-   └──────────┬───────────┘        └─────────────────┘
-              │
-   ┌──────────┴───────────┐
-   │  Sauvegarde (NAS)    │
-   └──────────────────────┘
-```
-
-**Périphérie, hors nœud de calcul : ~1 800 – 2 400 € TTC**
-- Poste client (mini-PC reconditionné) : 250 – 350 €
-- Écran 27" QHD + clavier/souris : 350 – 450 €
-- Câblage Cat6a en plancher technique : 150 – 300 €
-- Onduleur 1500 VA : 350 – 450 €
-- NAS de sauvegarde 2 × 8 To en miroir : 700 – 900 €
-
-*(Le poste de veille du sas relève du périmètre agents, traité ailleurs.)*
-
-### Topologie B — étoile, trois accès
-
-```
-                     ┌──────────────────────┐
-                     │   NŒUD DE CALCUL     │
-                     └──────────┬───────────┘
-                                │ 2.5 GbE
-                     ┌──────────┴───────────┐
-                     │  SWITCH MANAGÉ       │
-                     │  VLAN dédié, 8 ports │
-                     └───┬──────┬───────┬───┘
-                  ┌──────┴─┐ ┌──┴───┐ ┌─┴──────┐
-                  │ POSTE 1│ │POSTE2│ │ POSTE 3│
-                  └────────┘ └──────┘ └────────┘
-```
-
-**Surcoût : ~1 400 – 1 900 € TTC** — deux postes clients avec écrans (1 100 – 1 500 €), switch managé 8 ports 2.5 GbE avec VLAN (200 – 400 €).
-
-**Sur les trois utilisateurs simultanés.** Le plafond est conservateur : trois traitants qui utilisent l'outil dans la journée, ce n'est presque jamais trois requêtes au même instant. Le paramètre à surveiller n'est pas le nombre d'utilisateurs mais le **cache d'attention** : trois sessions à 32 000 tokens consomment plusieurs gigaoctets *en plus* des poids. Plafonnez le contexte par session à 32K–64K ; les 256K de Qwen 3.8-27B sont un argument commercial, pas un régime de croisière.
-
----
-
-## 6. Deux charges, pas une — conséquence de votre plan agentique
-
-Votre intention d'ingérer par agents change le profil de la machine. Elle porte désormais **deux charges de nature opposée** :
-
-| | Dialogue interactif | Enrichissement par lots |
-|---|---|---|
-| Déclencheur | un traitant pose une question | ingestion nocturne, reprise de corpus |
-| Métrique | **latence** (temps au 1er mot) | **débit** (documents/heure) |
-| Concurrence | 3 sessions | 1 file saturée |
-| Modèle | grand (27B) | petit suffit (3–8B) |
-| Tolérance | quelques secondes | quelques heures |
-
-Cela a trois conséquences pratiques :
-
-1. **Séparez les modèles.** L'extraction d'entités et le résumé d'ingestion ne demandent pas le modèle de dialogue. Un modèle de 3 à 8 milliards de paramètres fait le travail à une fraction du coût, et vous pouvez en traiter beaucoup plus par heure.
-2. **Séquencez.** Le lot tourne la nuit, l'interactif le jour. Une file de priorité suffit ; il n'y a pas besoin de deux machines.
-3. **Prévoyez la mémoire résidente.** En régime nominal vous aurez simultanément en VRAM : le modèle de dialogue (~17-19 Go), l'embedding (~2 Go), le réordonnanceur (~1 Go), et éventuellement le modèle d'extraction (~5 Go). **32 Go deviennent justes.** C'est le principal argument nouveau en faveur de plus de VRAM.
-
----
-
-## 7. Sur le graphe de connaissances — position révisée
-
-Votre objection est juste : il y a bien un sujet de dette technique. Mais **elle ne se situe pas où vous la placez**, et cette distinction change entièrement l'arbitrage.
-
-### Ce qui est reconstructible, et ce qui ne l'est pas
-
-| Objet | Nature | Reconstruction si omis |
-|---|---|---|
-| Moteur de graphe, schéma de relations, traversées | **dérivé** | recalcul sur le corpus — jours de machine |
-| Extraction de relations | **dérivée** | re-passe sur le corpus — jours de machine |
-| Embeddings, index vectoriel | **dérivé** | ré-indexation — heures |
-| Segmentation | **dérivée** | ré-ingestion depuis le markdown — heures |
-| **Enveloppe de métadonnées** | **primaire** | **ré-ingestion depuis les sources — souvent impossible** |
-| **Référentiel d'entités** | **primaire** | **retravail humain intégral — mois** |
-| **Cotation de fiabilité** | **primaire** | **irrécupérable a posteriori** |
-
-Un graphe est un **artefact dérivé**. Vous pouvez le reconstruire à volonté tant que vous avez conservé les nœuds, les identifiants et la provenance. Le reconstruire est un travail de machine, pas de migration.
-
-En revanche, si vous ingérez 5 000 documents sans enveloppe : la date de publication d'un post supprimé depuis est perdue, le compte émetteur d'une image reprise n'est plus retrouvable, la cotation que l'analyste avait en tête au moment de la lecture n'a jamais été écrite. **Cette information-là ne se reconstitue pas.** Et pour la strate chaude, elle se dégrade en jours.
-
-### La position révisée
-
-> **Faites le schéma et le référentiel en phase 1. Différez le moteur de graphe et la couche de traversée.**
-
-Ce n'est pas « pas de graphe ». C'est : construisez maintenant, à coût faible, tout ce dont le graphe aura besoin, et n'engagez le graphe lui-même que lorsque vous saurez quelles relations modéliser.
-
-Ce que cela coûte en phase 1 : quelques jours pour figer l'enveloppe et amorcer le référentiel, puis une discipline d'ingestion. Ce que cela évite : modéliser un schéma de relations à l'aveugle, sur un corpus que vous n'avez pas encore vu, et découvrir en phase 2 que les relations utiles ne sont pas celles que vous aviez prévues — ce qui est le mode d'échec dominant des projets de graphe de connaissances.
-
-Ce que cela vous donne entre-temps, sans graphe : la recherche filtrée par entité, strate, fraîcheur et fiabilité. C'est déjà l'essentiel du gain, et c'est ce qui rend les usages *debunk* possibles.
-
-### Le déclencheur du passage au graphe
-
-Ne décidez pas au calendrier, décidez sur une observation. Le graphe se justifie quand votre jeu d'évaluation contient une classe de questions que la recherche filtrée échoue **systématiquement** à traiter. En pratique, ce sont les questions à sauts multiples : « quels acteurs relient ce matériel à ce théâtre », « par quelle chaîne cette caractéristique s'est-elle propagée d'une source à l'autre », « qu'est-ce qui a changé entre ces deux RETEX ».
-
-Quand ces questions apparaissent et échouent, vous saurez exactement quelles arêtes construire — et vos nœuds seront déjà là, étiquetés, depuis des mois. La construction devient un travail de semaines au lieu de mois.
-
----
-
-## 8. Scénarios matériels
-
-Le budget portant désormais **sur le seul équipement**, l'arbitrage matériel/prestation disparaît. Prix TTC indicatifs, **à revalider au devis** : le marché mémoire bouge de semaine en semaine.
-
-### S1 — Station NVIDIA mono-GPU
-**Nœud 7 100 – 8 900 € · avec topologie B : 10 300 – 13 200 €**
-
-1 × RTX 5090 (32 Go GDDR7, ~1 792 Go/s).
-
-| Poste | Coût |
+| 1 | **Nœud de calcul** | GPU de dialogue, GPU de service, plateforme, NVMe | 8 000 – 9 800 € |
+| 2 | **Stockage du corpus** | NAS 4 baies + disques, ~30 To utiles | 2 200 – 2 800 € |
+| 3 | **Sauvegarde** | second jeu, règle 3-2-1, coffre | 1 200 – 1 800 € |
+| 4 | **Postes traitants ×3** | clients légers reconditionnés, écrans, périphériques | 1 900 – 2 500 € |
+| 5 | **Réseau et réception** | switch managé, câblage plancher, poste de réception du lot | 1 400 – 1 900 € |
+| 6 | **Énergie** | onduleur 2200 VA | 600 – 900 € |
+| 7 | **Divers et marge** | câbles, rails, étiquetage, aléas | 1 500 – 2 000 € |
+| | **Total** | | **16 800 – 21 700 €** |
+
+### Détail du nœud de calcul
+
+| Poste | Montant |
 |---|---|
-| RTX 5090 32 Go | 3 500 – 4 000 € |
-| Plateforme (CPU 16c, 128 Go DDR5, carte mère, alim, boîtier, refroidissement) | 3 000 – 4 000 € |
-| Stockage 4 To NVMe + 8 To HDD | 600 – 900 € |
+| 1 × RTX 5090 32 Go — modèle de dialogue | 3 500 – 4 000 € |
+| 1 × GPU de service 16 Go — embedding, reranker, ASR | 600 – 900 € |
+| Plateforme bi-GPU : CPU 16c, 128 Go DDR5, carte mère double PCIe espacé, alimentation 1600 W, boîtier, refroidissement | 3 500 – 4 500 € |
+| NVMe 4 To — poids des modèles, index chaud | 400 – 600 € |
 
-Premier token en 1 à 3 s. Trois utilisateurs sans difficulté. Mais 32 Go deviennent justes une fois l'embedding, le réordonnanceur et le modèle d'extraction résidents (§06).
+### Les deux décisions à retenir de ce tableau
 
-### S1+ — Châssis bi-GPU, une seule carte installée
-**Nœud 8 100 – 10 200 € · avec topologie B : 11 300 – 14 500 € — recommandé**
+**Le second RTX 5090 ne rentre pas.** Avec le périmètre élargi au stockage, à la sauvegarde et à la sécurisation, l'enveloppe ne finance plus 64 Go de VRAM. C'est le principal effet de la clarification de périmètre, et c'est une bonne nouvelle déguisée : le goulot d'étranglement de votre dispositif n'est pas la VRAM, il est dans la structuration du corpus et dans la chaîne de traitement des médias. La plateforme reste dimensionnée pour deux cartes — le surcoût est de 800 à 1 300 € — et vous ajouterez la seconde plus tard, probablement moins cher.
 
-Identique à S1, mais la plateforme est dimensionnée pour deux cartes dès l'achat : alimentation 1600 W, carte mère à double emplacement PCIe espacé, boîtier et refroidissement adaptés. Une seule carte est installée.
+**Le petit GPU de service est le meilleur euro du dossier.** Une carte 16 Go à 600–900 € accueille en permanence l'embedding, le réordonnanceur et l'ASR. Elle libère les 32 Go du 5090 pour le seul modèle de dialogue et son cache d'attention — ce qui résout le problème de mémoire résidente identifié en révision 2, pour un cinquième du prix d'un second 5090. C'est de l'asymétrie assumée : une grosse carte pour ce qui demande de la latence, une petite pour ce qui tourne en fond.
 
-Surcoût immédiat : **800 à 1 300 €**. Coût d'ajout de la seconde carte plus tard : le prix de la carte seule, sans remplacer la machine.
+### Sur le stockage
 
-### S2 — Station NVIDIA bi-GPU complète
-**Nœud 11 800 – 14 200 € · avec topologie B : 15 000 – 18 500 €**
+Ordres de grandeur, pour que le chiffre ne soit pas arbitraire :
 
-2 × RTX 5090, 64 Go cumulés. Ouvre les MoE 70–80B en 4 bits et permet de garder tous les modèles résidents avec un large cache d'attention.
+| Nature | Volume typique | Part du stockage |
+|---|---|---|
+| Documents markdown | 1 M documents ≈ 20 Go | négligeable |
+| Index vectoriel | 1 M fragments ≈ 1–4 Go | négligeable |
+| Images | 100 000 images ≈ 100–500 Go | modéré |
+| **Vidéo brute** | **1 000 heures ≈ 600–3 000 Go** | **~90 %** |
+| Dérivés vidéo | transcriptions, images-clés | négligeable |
 
-**Contrainte physique : ~1 200 W en pointe.** Vérifier climatisation et circuit électrique du local **avant** achat — c'est le piège classique de ce scénario. Le parallélisme sur deux cartes impose vLLM.
-
-### S3 — Mac Studio M3 Ultra 96 Go
-**Nœud 6 500 – 7 500 € · avec topologie B : 9 700 – 11 800 €**
-
-819 Go/s, 200–300 W, silencieux, déploiement le plus simple de tous les scénarios. Mais le préremplissage est son défaut, et il porte précisément sur votre usage RAG. **Écarté** compte tenu du profil de charge décrit au §06 : l'enrichissement par lots y serait particulièrement lent, et c'est une charge que vous allez avoir en volume.
-
-### S4 — RTX PRO 6000 Blackwell 96 Go
-**~11 500 € la carte seule.** Techniquement le meilleur choix — 96 Go, ~1,8 To/s, une seule carte. Mais +55 % en seize mois. Avec le nœud complet, on dépasse 15 000 € pour une machine mono-carte. À réexaminer si le marché se détend.
-
-### Synthèse
-
-| | S1 | **S1+** | S2 | S3 Mac |
-|---|---|---|---|---|
-| Budget topologie B | 10 300 – 13 200 € | **11 300 – 14 500 €** | 15 000 – 18 500 € | 9 700 – 11 800 € |
-| VRAM | 32 Go | 32 Go | 64 Go | 96 Go unifiés |
-| 1er mot · RAG 15K | 1 – 3 s | 1 – 3 s | 1 – 2 s | 10 – 30 s |
-| Charge par lots | correcte | correcte | **bonne** | lente |
-| Modèles résidents | justes | justes | confortables | confortables |
-| Consommation pointe | ~700 W | ~700 W | ~1 200 W | ~300 W |
-| Évolutivité | carte à changer | **+1 carte** | saturée | aucune |
+30 To utiles laissent une marge confortable pour démarrer. C'est la vidéo qui décidera de la trajectoire, d'où l'importance d'une politique de rétention arrêtée tôt.
 
 ---
 
-## 9. Recommandation
+## 8. Les modèles — Qwen au centre, et pourquoi
 
-### Matériel : S1+ — le châssis de S2, la facture de S1
+Votre préférence est fondée, et pour ce dispositif elle l'est plus qu'ailleurs.
 
-Achetez la plateforme dimensionnée pour deux cartes, n'en installez qu'une. **11 300 – 14 500 € en topologie B**, dans votre enveloppe réaliste.
+| Rôle | Modèle | Empreinte | Justification |
+|---|---|---|---|
+| **Dialogue et vision** | **Qwen 3.8-27B** | ~18 Go en 4 bits | 27B dense, Apache 2.0, encodeur visuel de 27 couches, compréhension native image **et** vidéo, contexte 262K. Classé 52 à l'Intelligence Index d'Artificial Analysis et en tête des modèles de raisonnement de 4 à 40B. **Un seul poids couvre le texte et l'image de votre corpus** — c'est l'argument décisif ici. |
+| Extraction par lots | Qwen 3 à 8B | ~5 Go | Étiquetage d'entités, cotation assistée, résumé d'ingestion. N'a pas besoin du grand modèle et traite bien plus de documents par heure. |
+| Embeddings | Qwen3-Embedding ou BGE-M3 | ~2 Go | Multilingues. BGE-M3 produit dense, lexical et multi-vecteurs dans un seul modèle, ce qui donne l'hybride sans deux systèmes. |
+| Réordonnancement | bge-reranker-v2-m3 | ~1 Go | Sur un corpus hétérogène, empêche un post de réseau social de passer devant un manuel technique. |
+| Transcription | Parakeet-TDT-0.6B-v3 | ~2 Go | ~49× Whisper large-v3 pour un WER inférieur. Décisif sur du volume vidéo. |
+| Transcription, secours | Whisper large-v3 | ~3 Go | 99+ langues, pour ce que Parakeet ne couvre pas. |
 
-Le raisonnement tient en trois points. Le marché est à un pic historique et une normalisation est attendue en 2027-2028 : **acheter la seconde carte plus tard, c'est probablement l'acheter moins cher.** Vous ne savez pas encore si votre charge par lots la justifie — le §06 dit qu'elle pourrait, votre corpus dira si elle le fait. Et le surcoût de l'option est de 800 à 1 300 €, contre plusieurs milliers si vous devez remplacer la machine entière.
+Deux remarques.
 
-C'est le seul poste où je vous conseille de payer pour de l'optionnalité plutôt que pour de la capacité.
+La **fenêtre de 262K** est un argument commercial, pas un régime de croisière. Plafonnez le contexte de session à 32K–64K : au-delà, la latence de préremplissage remonte et la qualité de la réponse ne suit pas.
 
-### Séquence
+Sur la **provenance chinoise des poids** : je l'avais signalée en révision 1, vous avez tranché, je n'y reviens pas. Un seul point subsiste, factuel : si le système doit être homologué, la provenance peut devenir une contrainte externe à votre préférence. Le dispositif y est préparé — le serveur d'inférence charge un fichier de poids, quel qu'il soit, et Mistral Small 4 est un remplaçant de taille équivalente sous la même licence. C'est un fichier à changer, pas une architecture à refaire. Autant le savoir avant d'avoir à le faire.
 
-**Phase 1 — 0 à 4 mois**
+---
 
-1. Monter le nœud, vLLM, Open WebUI, Qdrant. *(quelques jours)*
-2. **Figer l'enveloppe de métadonnées** (§04) — avant toute ingestion de masse.
-3. **Amorcer le référentiel d'entités** sur les 100 à 200 entités qui comptent vraiment dans votre domaine.
-4. Ingérer d'abord les strates **froides** : principes, documentation technique. Elles sont stables, propres, et constituent le référentiel de confrontation dont les usages *debunk* auront besoin.
-5. **Écrire un jeu d'évaluation de 30 à 50 questions** avec réponses attendues, en couvrant explicitement les cinq usages — dont au moins cinq questions à sauts multiples, qui serviront de déclencheur pour la décision sur le graphe.
-6. Comparer Qwen 3.8-27B et Mistral Small 4 sur ce jeu.
+## 9. Pile logicielle
+
+| Couche | Choix | Pourquoi |
+|---|---|---|
+| Serveur d'inférence | **vLLM** | Traitement continu par lots — débit très supérieur sur l'enrichissement nocturne. Sert plusieurs modèles simultanément. API compatible OpenAI, consommée directement par l'interface. |
+| Interface | **Open WebUI** | Multi-utilisateur, droits, historique, **citations des sources** — indispensable pour afficher la cotation à côté de chaque extrait. |
+| Index vectoriel | **Qdrant** | Choisi pour le **filtrage sur payload** : filtrer par strate, cotation, entité et fenêtre de dates *avant* le classement. C'est exactement ce qu'exige un corpus à quatre strates. |
+| Base relationnelle | **PostgreSQL** | Fiches matérielles, catalogue des documents, journal. Requêtable de façon déterministe par l'outil `interroger_fiches`. |
+| Graphe de collecte | **Neo4j Community** ou extension graphe de PostgreSQL | Si le volume de relations reste modeste, l'extension PostgreSQL évite d'exploiter un serveur de plus. À trancher sur la volumétrie réelle. |
+| Orchestration | **LlamaIndex** | Le filtrage par strate et le jeu d'outils demanderont du code propre assez vite. |
+| Chaîne médias | ffmpeg, détection de coupe, Parakeet | Extraction d'images-clés et transcription, par lots. |
+| Conteneurisation | **Docker Compose** | Un fichier décrit toute la pile ; sauvegarde et restauration triviales. |
+
+### Contraintes de zone isolée
+
+Téléchargement hors ligne des poids et des images conteneur — à faire transiter par le même canal que les lots, avec la même rigueur. Miroir de paquets local. Chiffrement intégral des disques du nœud et du NAS. **Procédure de restauration documentée et testée**, pas seulement écrite.
+
+**Journalisation des requêtes** : nécessaire, mais prévenez les utilisateurs. Un outil dont on découvre après coup qu'il est journalisé perd la confiance de ses utilisateurs, et un traitant qui se méfie de l'outil ne lui pose plus les vraies questions.
+
+---
+
+## 10. Séquencement
+
+### Cette semaine — avant tout achat
+
+**Figer le format de lot avec la TF EYLAU** (§02). C'est une demi-journée, c'est gratuit, et c'est la seule chose du dossier qui soit vraiment irrattrapable. Tout le reste peut attendre le matériel.
+
+### Phase 1 — 0 à 4 mois
+
+1. Monter le nœud, vLLM, Open WebUI, Qdrant, PostgreSQL.
+2. **Amorcer le référentiel d'entités** : les 100 à 200 entités qui comptent, avec leurs alias.
+3. Ingérer d'abord les **strates froides** — principes, documentation technique, fiches matérielles. Elles sont stables, propres, et constituent le référentiel de confrontation dont les usages *debunk* auront besoin. On ne peut pas contredire une rumeur sans référentiel.
+4. Câbler les outils `chercher_documents`, `interroger_fiches`, `lire_document`.
+5. **Écrire le jeu d'évaluation** — 30 à 50 questions avec réponses attendues.
+6. Recevoir un premier lot réel de la TF EYLAU et vérifier que le manifeste tient à l'usage. C'est le moment où l'on découvre les champs manquants, tant qu'il est encore temps.
 7. Faire tester par un traitant volontaire.
 
-**Phase 2 — 4 à 12 mois**
+### Phase 2 — 4 à 12 mois
 
-Ingestion des strates tièdes puis chaudes, une fois la séparation par strate validée. Décision sur le graphe, sur observation du jeu d'évaluation. Seconde carte si la charge par lots la justifie. Passage en topologie B si vous avez démarré en A.
+Chaîne médias — ASR, images-clés, descriptions. Ingestion des strates tièdes puis chaudes. Graphe de collecte alimenté depuis les `relations_collecte` des manifestes. Décision sur le graphe sémantique, sur observation du jeu d'évaluation. Seconde carte si la charge par lots la justifie.
+
+### Le jeu d'évaluation — structure proposée
+
+C'est l'étape que tout le monde saute et celle qui décide de tout : sans elle, vous ne saurez jamais si un changement améliore ou dégrade le système. Répartition suggérée :
+
+| Type | Nombre | Ce qu'il teste |
+|---|---|---|
+| Fait technique vérifiable | 10 | Le système lit-il la bonne ligne de la bonne fiche ? |
+| Principe scientifique | 5 | Restitue-t-il correctement un invariant, sans le déformer ? |
+| Confrontation chaud/froid | 10 | **Le cœur du dispositif.** Sait-il opposer une revendication à un principe, avec les deux cotations ? |
+| Question à sauts multiples | 5 | **Détecteur de graphe.** Échoue-t-il systématiquement ? |
+| Synthèse rédactionnelle | 5 | Fidélité aux sources, citations correctes |
+| Question piège | 5 | Absence de réponse dans le corpus : dit-il qu'il ne sait pas, ou invente-t-il ? |
+
+Les cinq dernières sont les plus importantes à écrire et les plus souvent oubliées. Un système qui invente proprement est plus dangereux qu'un système qui ne répond pas.
 
 ### Sur l'accompagnement bénévole
 
-Le fait qu'il soit gratuit ne le rend pas illimité, et c'est justement pourquoi il faut choisir où le dépenser. **Un appui bénévole est irrégulier et peut s'interrompre sans préavis.** Dépensez-le en priorité sur ce que vous ne pourrez pas refaire : l'enveloppe, le référentiel, la discipline d'ingestion. L'installation du socle technique est documentée, reproductible, et rattrapable seul ; la structuration du corpus ne l'est pas.
+Gratuit ne veut pas dire illimité, et c'est justement pourquoi il faut choisir où le dépenser. Un appui bénévole est irrégulier et peut s'interrompre sans préavis. Mettez-le sur ce que vous ne pourrez pas refaire : le format de lot, le référentiel, la discipline d'ingestion. Le socle technique est documenté, reproductible, rattrapable seul ; la structuration du corpus ne l'est pas.
 
-Formulé autrement : **priorisez par irréversibilité, pas par difficulté.**
+**Priorisez par irréversibilité, pas par difficulté.**
 
-Identifiez par ailleurs **une personne en interne** — pas un expert, quelqu'un de méthodique — comme référent : ingestion des nouveaux documents, tenue du référentiel, surveillance des sauvegardes, évolution du jeu d'évaluation. Un demi-jour par semaine en régime de croisière. Sans ce rôle, le corpus vieillit en silence et l'outil perd sa pertinence sans qu'on sache pourquoi.
-
----
-
-## 10. Pile logicielle — et pourquoi ces choix
-
-Vos deux précisions — markdown natif et ingestion agentique — modifient deux choix de la révision 1.
-
-| Couche | Choix | Justification |
-|---|---|---|
-| Serveur d'inférence | **vLLM** *(révisé)* | La révision 1 recommandait Ollama, calibré sur « pas d'expert disponible ». Avec un appui bénévole et surtout une **charge par lots**, vLLM devient le bon choix : le traitement continu par lots lui donne un débit très supérieur sur l'enrichissement, il sert plusieurs modèles simultanément, et son API compatible OpenAI est consommée directement par Open WebUI et par vos agents. |
-| Interface | **Open WebUI** | Multi-utilisateur, comptes et droits, historique, **citations des sources** — indispensable pour afficher la cotation à côté de chaque extrait. C'est la brique qui rend l'outil adoptable et vérifiable. |
-| Base vectorielle | **Qdrant** | Choisi pour le **filtrage sur payload**, qui est exactement ce qu'exige votre corpus à quatre strates : filtrer par température, fiabilité, entité et fenêtre de dates *avant* le classement. Chroma est plus simple mais nettement plus faible sur ce point précis. |
-| Embeddings | **BGE-M3** | Multilingue — vous aurez de l'anglais, du russe et d'autres langues en source ouverte. Il produit dense, lexical et multi-vecteurs **dans un seul modèle**, ce qui donne la recherche hybride sans faire tourner deux systèmes. |
-| Réordonnancement | **bge-reranker-v2-m3** | Sur un corpus de qualité hétérogène, les cinquante premiers résultats vectoriels contiennent du bruit. Le réordonnanceur est ce qui empêche un post de réseau social de passer devant un manuel technique. Gain de pertinence très supérieur à son coût de calcul. |
-| Ingestion | **markdown natif** *(révisé)* | La révision 1 proposait Docling, calibré sur un corpus majoritairement PDF. Vous passant en markdown en amont, Docling devient marginal : gardez-le en **voie de secours PDF** uniquement. L'effort se déplace vers la segmentation par titres et l'étiquetage d'entités. |
-| Segmentation | **par `heading_path`** | Bénéfice direct du markdown : segmenter par titre plutôt que par nombre de caractères, et restituer le chemin complet du titre au modèle. Meilleure pertinence, coût nul. |
-| Orchestration | RAG intégré, puis **LlamaIndex** | Le filtrage par strate demandera assez vite du code propre. Ne sur-ingéniérez pas au départ. |
-| Conteneurisation | **Docker Compose** | Un fichier décrit toute la pile ; sauvegarde et restauration triviales. |
-
-### Contraintes d'environnement isolé
-
-Téléchargement hors ligne des poids et des images ; miroir de paquets local ; **chiffrement intégral des disques** du nœud et du NAS ; procédure de restauration documentée **et testée**.
-
-**Journalisation des requêtes** : nécessaire à la sécurité, mais prévenez les utilisateurs. Un outil dont on découvre après coup qu'il est journalisé perd la confiance de ses utilisateurs — et un traitant qui se méfie de l'outil ne lui pose plus les vraies questions.
+Et identifiez **une personne en interne** — pas un expert, quelqu'un de méthodique — comme référent : réception des lots, tenue du référentiel, surveillance des sauvegardes, évolution du jeu d'évaluation. Un demi-jour par semaine en régime de croisière. Sans ce rôle, le corpus vieillit en silence.
 
 ---
 
@@ -393,37 +377,35 @@ Téléchargement hors ligne des poids et des images ; miroir de paquets local ; 
 
 | Risque | Probabilité | Effet | Parade |
 |---|---|---|---|
-| **Injection indirecte par la strate chaude** | **Élevée** | Manipulation des réponses, exfiltration de la logique d'analyse | Voir ci-dessous |
-| Strates mélangées dans un index unique | Élevée sans enveloppe | Rumeur restituée avec l'autorité d'un principe | Enveloppe §04, filtrage avant classement |
-| Ingestion sans métadonnées | Élevée | **Dette irréversible** | Figer l'enveloppe avant l'ingestion de masse |
-| Absence de jeu d'évaluation | Très élevée | Qualité impilotable | 30–50 questions dès la phase 1 |
-| Confiance excessive dans les réponses | Élevée | Erreur d'analyse propagée | Citations et cotation obligatoires ; le modèle est un contradicteur, pas une autorité |
-| VRAM saturée par les modèles résidents | Moyenne (S1) | Éviction, ralentissements | Châssis S1+, seconde carte si nécessaire |
+| **Lots reçus sans métadonnées complètes** | **Élevée sans contrat** | **Perte définitive de traçabilité et de cotation** | Figer le format de lot avant l'industrialisation de la collecte |
+| Injection indirecte par la strate chaude | Élevée | Manipulation des réponses | Trois règles ci-dessous |
+| Fiches matérielles vectorisées | Élevée si non traitée | Réponses plausibles et fausses sur des caractéristiques | Base relationnelle + outil dédié |
+| Strates mélangées dans un index unique | Élevée sans filtrage | Rumeur restituée avec l'autorité d'un principe | Filtrage par strate et cotation avant classement |
+| Absence de jeu d'évaluation | Très élevée | Qualité impilotable | 30 à 50 questions dès la phase 1 |
+| Vidéo traitée naïvement | Moyenne | Chaîne coûteuse, stockage saturé, faible rendement | Indexer les dérivés, rétention distincte sur la brute |
+| Confiance excessive dans les réponses | Élevée | Erreur d'analyse propagée | Cotation restituée avec chaque citation ; questions pièges dans l'évaluation |
+| Provenance des poids et homologation | À déterminer | Modèle à changer en cours de route | Pile agnostique, Mistral Small 4 en remplaçant identifié |
 | Appui bénévole interrompu | Moyenne | Chantier à l'arrêt | Dépenser l'appui sur l'irréversible d'abord |
-| Contrainte thermique et électrique | Moyenne (S2) | Instabilité, bruit | Vérifier climatisation et circuit avant achat |
-| Prix matériel volatils | Certaine | Devis périmé en 4 semaines | Validité courte ; différer la seconde carte |
+| Prix matériel volatils | Certaine | Devis périmé en quatre semaines | Validité courte, marge de 10 %, seconde carte différée |
 
 ### Sur l'injection indirecte
 
-Le sas relève d'un autre chantier, mais un point le traverse et doit être posé ici, parce qu'il contraint la conception du corpus autant que celle du sas.
+La TF EYLAU collecte du contenu public, qui traverse la rupture et finit lu par un modèle qui répond à vos traitants. C'est un chemin complet entre un attaquant et votre système. Du texte publié, rédigé pour être ingéré, peut porter des instructions destinées au modèle — et dans votre domaine, l'adversaire sait que vous observez. La rupture protège le réseau, elle ne protège pas le modèle : elle laisse passer le contenu, et c'est le contenu qui porte l'attaque.
 
-Vous prévoyez des agents qui collectent depuis les réseaux sociaux et écrivent dans le corpus, lequel est ensuite lu par un modèle qui répond à vos traitants. C'est un chemin complet entre un attaquant et votre système. Du texte publié publiquement, rédigé pour être ingéré, peut contenir des instructions à destination du modèle — et dans votre domaine, l'adversaire sait que vous observez.
+Trois règles couvrent l'essentiel, et elles coûtent peu si elles sont prévues dès la conception :
 
-Trois règles suffisent à couvrir l'essentiel :
-
-1. **Le contenu ingéré est une donnée, jamais une instruction.** Les extraits doivent arriver au modèle dans une enveloppe explicitement marquée comme citation non fiable, jamais concaténés au message système.
-2. **L'agent de collecte écrit en quarantaine, pas dans le corpus.** Promotion vers l'index de production après contrôle — automatique pour les strates froides, avec revue humaine pour la strate chaude, au moins au démarrage.
-3. **L'agent de collecte n'a aucun droit de lecture sur le corpus de production.** Un agent compromis par le contenu qu'il lit ne doit pas pouvoir en extraire autre chose.
-
-C'est peu coûteux si c'est prévu dès la conception, et très difficile à rattraper ensuite.
+1. **Le contenu ingéré est une donnée, jamais une instruction.** Les extraits arrivent au modèle dans une enveloppe explicitement marquée comme citation non fiable, jamais concaténés au message système.
+2. **Le lot atterrit en quarantaine, pas dans l'index de production.** Promotion après contrôle — automatique pour les strates froides, avec revue humaine pour la strate chaude, au moins au démarrage.
+3. **La chaîne d'ingestion n'a aucun droit de lecture sur le corpus de production.** Un traitement compromis par le contenu qu'il lit ne doit pas pouvoir en extraire autre chose.
 
 ---
 
 ## 12. Points restant à clarifier
 
-1. **Volumétrie et débit par strate** : combien de documents à l'amorçage, et surtout combien par jour sur la strate chaude ? C'est ce qui dimensionne la charge par lots et donc la décision sur la seconde carte.
-2. **Politique de rétention de la strate chaude** : la conservez-vous indéfiniment, ou purgez-vous au-delà d'une fenêtre ? Cela change la taille de l'index et la conception du référentiel.
-3. **Grille de cotation** : utilisez-vous une cotation source/information existante, ou faut-il en définir une ? Elle doit être figée avant l'ingestion de masse.
-4. **Cadre d'homologation** : le système doit-il être homologué, et à quel niveau ? Cela peut contraindre la provenance des modèles (Qwen chinois contre Mistral français, §0.1) et imposer des délais à anticiper.
-5. **Réseau isolé ou seulement sans Wi-Fi ?** La réponse change les procédures d'installation et de mise à jour.
-6. **Local d'accueil** : circuit électrique et climatisation disponibles ? Contraignant seulement si vous visez S2 à terme, mais autant le vérifier avant d'acheter le châssis.
+1. **Volume et cadence des lots** — combien de documents à l'amorçage, combien par semaine ensuite, et quelle part de vidéo ? C'est ce qui dimensionne le stockage et décide de la seconde carte.
+2. **Langues cibles réelles** — pour arbitrer Parakeet contre Whisper sur la chaîne de transcription.
+3. **Grille de cotation** — en existe-t-il une en vigueur à reprendre, ou faut-il la définir ? Elle doit figurer au format de lot, donc être arrêtée cette semaine.
+4. **Politique de rétention de la vidéo brute** — conservation indéfinie ou fenêtre glissante ? Cela change la trajectoire de stockage.
+5. **Volumétrie du graphe de collecte** — quelques milliers de relations, ou quelques millions ? Cela tranche entre l'extension PostgreSQL et un serveur graphe dédié.
+6. **Cadre d'homologation** — le système doit-il être homologué, à quel niveau ? Contraint possiblement la provenance des modèles et impose des délais à anticiper.
+7. **Local d'accueil** — circuit électrique et climatisation disponibles pour un nœud qui montera à ~1 200 W si la seconde carte est ajoutée ?
