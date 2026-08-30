@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="generator" content="Panoptes — export autonome">
+  <style>
+    /* Reset minimal : reproduit l'ossature fournie par le runtime d'artefacts,
+       pour que le fichier se comporte de la meme facon hors de celui-ci. */
+    html{-webkit-text-size-adjust:100%}
+    body{margin:0}
+    img,video{max-width:100%;height:auto}
+    [hidden]{display:none!important}
+  </style>
+  <title>Maquette d'interface Panoptes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Sans+3:wght@400;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+  <style>
+    :root{
+      --ground:#F1F3F2; --surface:#FFFFFF; --panel:#FAFBFA; --rail:#EAEEEC;
+      --ink:#171D1C; --muted:#59635F; --faint:#7C8783;
+      --rule:#D3D9D6; --rule-strong:#B6BFBB;
+      --accent:#0C6B66; --accent-soft:#E1EDEC;
+      --haute:#0F6B4F; --haute-soft:#E2F0EA;
+      --moyenne:#8A5A0B; --moyenne-soft:#F7EEDD;
+      --faible:#97331F; --faible-soft:#F8E6E1;
+      --nulle:#5E6A66; --nulle-soft:#E8EBE9;
+      --shadow:0 1px 3px rgba(23,29,28,.07);
+    }
+    @media (prefers-color-scheme: dark){
+      :root:not([data-theme="light"]){
+        --ground:#0F1413; --surface:#161C1B; --panel:#131918; --rail:#121817;
+        --ink:#E5EAE8; --muted:#96A19D; --faint:#7A8580;
+        --rule:#293230; --rule-strong:#3A4543;
+        --accent:#54BDB5; --accent-soft:#15302E;
+        --haute:#4FBF8F; --haute-soft:#113026;
+        --moyenne:#D9A441; --moyenne-soft:#33280F;
+        --faible:#E08268; --faible-soft:#35201A;
+        --nulle:#96A19D; --nulle-soft:#232B29;
+        --shadow:0 1px 3px rgba(0,0,0,.35);
+      }
+    }
+    :root[data-theme="dark"]{
+      --ground:#0F1413; --surface:#161C1B; --panel:#131918; --rail:#121817;
+      --ink:#E5EAE8; --muted:#96A19D; --faint:#7A8580;
+      --rule:#293230; --rule-strong:#3A4543;
+      --accent:#54BDB5; --accent-soft:#15302E;
+      --haute:#4FBF8F; --haute-soft:#113026;
+      --moyenne:#D9A441; --moyenne-soft:#33280F;
+      --faible:#E08268; --faible-soft:#35201A;
+      --nulle:#96A19D; --nulle-soft:#232B29;
+      --shadow:0 1px 3px rgba(0,0,0,.35);
+    }
+
+    *{box-sizing:border-box}
+    body{
+      margin:0;background:var(--ground);color:var(--ink);
+      font-family:"Source Sans 3",system-ui,sans-serif;font-size:15px;line-height:1.6;
+    }
+    .wrap{max-width:1240px;margin:0 auto;padding:0 24px 100px}
+
+    header.top{padding:56px 0 26px;border-bottom:2px solid var(--ink)}
+    header.top h1{
+      font-family:Archivo,sans-serif;font-weight:700;
+      font-size:clamp(1.8rem,4vw,2.7rem);line-height:1.04;letter-spacing:-.02em;
+      margin:0;max-width:20ch;text-wrap:balance;
+    }
+    .eyebrow{
+      font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.13em;
+      text-transform:uppercase;color:var(--accent);margin:0 0 12px;
+    }
+    .deck{color:var(--muted);max-width:66ch;margin:18px 0 0;font-size:1.03rem}
+
+    h2{
+      font-family:Archivo,sans-serif;font-weight:600;font-size:1.5rem;
+      letter-spacing:-.012em;margin:56px 0 6px;text-wrap:balance;
+    }
+    h2 + .sub{color:var(--muted);margin:0 0 22px;max-width:68ch}
+
+    /* ============ APP MOCKUP ============ */
+    .frame{
+      border:1px solid var(--rule-strong);background:var(--surface);
+      box-shadow:var(--shadow);overflow-x:auto;margin:24px 0 12px;
+    }
+    .chrome{
+      display:flex;align-items:center;gap:10px;padding:9px 14px;
+      border-bottom:1px solid var(--rule);background:var(--panel);
+      font-family:"IBM Plex Mono",monospace;font-size:.66rem;
+      letter-spacing:.08em;text-transform:uppercase;color:var(--faint);
+      min-width:940px;
+    }
+    .dot{width:8px;height:8px;border-radius:50%;background:var(--rule-strong)}
+    .chrome .grow{flex:1}
+    .badge-net{
+      border:1px solid var(--accent);color:var(--accent);padding:1px 7px;letter-spacing:.09em;
+    }
+    .app{display:grid;grid-template-columns:186px 1fr 268px;min-width:940px;min-height:600px}
+
+    /* left rail */
+    .side{background:var(--rail);border-right:1px solid var(--rule);padding:16px 14px;font-size:.8rem}
+    .brandline{
+      font-family:Archivo,sans-serif;font-weight:700;font-size:.95rem;
+      letter-spacing:-.01em;margin:0 0 2px;
+    }
+    .brandsub{
+      font-family:"IBM Plex Mono",monospace;font-size:.58rem;letter-spacing:.12em;
+      text-transform:uppercase;color:var(--faint);margin:0 0 20px;
+    }
+    .grouplabel{
+      font-family:"IBM Plex Mono",monospace;font-size:.58rem;letter-spacing:.11em;
+      text-transform:uppercase;color:var(--faint);margin:20px 0 7px;
+    }
+    .conv{padding:5px 8px;color:var(--muted);border-radius:2px;margin-bottom:1px}
+    .conv.on{background:var(--accent-soft);color:var(--ink);font-weight:600}
+    .filt{display:flex;align-items:center;gap:7px;padding:4px 0;color:var(--muted)}
+    .box{
+      width:12px;height:12px;border:1px solid var(--rule-strong);flex:none;
+      background:var(--surface);position:relative;
+    }
+    .box.on{background:var(--accent);border-color:var(--accent)}
+    .box.on::after{
+      content:"";position:absolute;left:3px;top:.5px;width:3px;height:7px;
+      border:solid var(--surface);border-width:0 1.5px 1.5px 0;transform:rotate(42deg);
+    }
+    .sw{
+      width:9px;height:9px;flex:none;border:1px solid var(--rule-strong);
+    }
+    .sw.f{background:var(--accent-soft);border-color:var(--accent)}
+    .sw.t{background:var(--rule-strong)}
+    .sw.c{background:var(--faible-soft);border-color:var(--faible)}
+
+    /* center */
+    .conve{padding:22px 26px;display:flex;flex-direction:column;gap:16px;min-width:0}
+    .msg-user{
+      background:var(--accent-soft);border-left:2px solid var(--accent);
+      padding:11px 15px;font-size:.92rem;max-width:80%;align-self:flex-end;
+    }
+    .toolstrip{
+      border:1px dashed var(--rule-strong);background:var(--panel);padding:9px 13px;
+      font-family:"IBM Plex Mono",monospace;font-size:.68rem;color:var(--muted);
+      display:flex;flex-direction:column;gap:3px;
+    }
+    .toolstrip b{color:var(--accent);font-weight:500}
+    .msg-ai{font-size:.92rem}
+    .msg-ai p{margin:0 0 11px}
+
+    .verdict-box{
+      border:1px solid var(--rule-strong);background:var(--panel);
+      padding:12px 15px;margin:0 0 12px;
+    }
+    .verdict-h{
+      font-family:"IBM Plex Mono",monospace;font-size:.6rem;letter-spacing:.11em;
+      text-transform:uppercase;color:var(--faint);margin-bottom:7px;
+    }
+    .origins{
+      display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;
+      font-family:"IBM Plex Mono",monospace;font-size:.78rem;
+    }
+    .big{font-size:1.5rem;font-weight:600;color:var(--faible);font-variant-numeric:tabular-nums}
+    .arrow{color:var(--faint)}
+    .note-line{font-size:.78rem;color:var(--muted);margin-top:8px;font-family:"Source Sans 3",sans-serif}
+
+    .cite{
+      display:flex;gap:10px;align-items:flex-start;padding:8px 11px;
+      border:1px solid var(--rule);background:var(--surface);margin-bottom:6px;font-size:.82rem;
+    }
+    .cite .ref{
+      font-family:"IBM Plex Mono",monospace;font-size:.68rem;color:var(--faint);
+      white-space:nowrap;padding-top:2px;
+    }
+    .cite .txt{color:var(--muted);min-width:0}
+    .cote{
+      font-family:"IBM Plex Mono",monospace;font-size:.7rem;font-weight:600;
+      padding:1px 6px;border:1px solid;white-space:nowrap;letter-spacing:.04em;
+    }
+    .c-haute{color:var(--haute);border-color:var(--haute);background:var(--haute-soft)}
+    .c-moy{color:var(--moyenne);border-color:var(--moyenne);background:var(--moyenne-soft)}
+    .c-faible{color:var(--faible);border-color:var(--faible);background:var(--faible-soft)}
+    .c-nulle{color:var(--nulle);border-color:var(--nulle);background:var(--nulle-soft)}
+
+    .composer{
+      border-top:1px solid var(--rule);padding:11px 15px;color:var(--faint);
+      font-size:.85rem;display:flex;justify-content:space-between;gap:14px;margin-top:auto;
+    }
+    .send{border:1px solid var(--accent);color:var(--accent);padding:2px 11px;font-size:.75rem;
+      font-family:Archivo,sans-serif;font-weight:600}
+
+    /* right */
+    .insp{background:var(--panel);border-left:1px solid var(--rule);padding:16px 15px;font-size:.8rem}
+    .insp h4{
+      font-family:Archivo,sans-serif;font-size:.82rem;margin:0 0 3px;font-weight:600;
+    }
+    .kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;
+      font-family:"IBM Plex Mono",monospace;font-size:.68rem;margin:10px 0 0}
+    .kv dt{color:var(--faint)}
+    .kv dd{margin:0;color:var(--ink)}
+    .chain{
+      font-family:"IBM Plex Mono",monospace;font-size:.66rem;color:var(--muted);
+      line-height:1.75;white-space:pre;margin:8px 0 0;
+    }
+    .divider{border-top:1px solid var(--rule);margin:16px 0}
+
+    /* ============ ANNOTATIONS ============ */
+    .notes{display:grid;gap:14px;margin:26px 0 0}
+    @media(min-width:760px){.notes{grid-template-columns:1fr 1fr}}
+    .ncard{
+      background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--accent);
+      padding:15px 18px;
+    }
+    .ncard h3{
+      font-family:Archivo,sans-serif;font-size:.95rem;margin:0 0 5px;font-weight:600;
+      display:flex;align-items:baseline;gap:9px;
+    }
+    .pin{
+      font-family:"IBM Plex Mono",monospace;font-size:.66rem;color:var(--accent);
+      border:1px solid var(--accent);padding:0 5px;flex:none;font-weight:600;
+    }
+    .ncard p{margin:0;color:var(--muted);font-size:.89rem}
+    .ncard.key{border-left-color:var(--faible)}
+    .ncard.key .pin{color:var(--faible);border-color:var(--faible)}
+
+    /* ============ LEVELS ============ */
+    .lv{display:grid;gap:12px;margin:22px 0 0}
+    @media(min-width:900px){.lv{grid-template-columns:repeat(4,1fr)}}
+    .lvc{background:var(--surface);border:1px solid var(--rule);padding:15px 16px;
+      display:flex;flex-direction:column;gap:7px}
+    .lvc.go{border-color:var(--accent);border-top:3px solid var(--accent)}
+    .lvc.no{opacity:.7}
+    .lvn{font-family:"IBM Plex Mono",monospace;font-size:.62rem;letter-spacing:.1em;
+      text-transform:uppercase;color:var(--faint)}
+    .lvc h3{font-family:Archivo,sans-serif;font-size:1rem;margin:0;font-weight:600}
+    .lvc p{margin:0;font-size:.85rem;color:var(--muted)}
+    .lvv{margin-top:auto;padding-top:9px;border-top:1px dashed var(--rule);
+      font-size:.8rem;font-weight:600}
+    .go .lvv{color:var(--accent)}
+    .no .lvv{color:var(--faint)}
+
+    .caption{
+      font-family:"IBM Plex Mono",monospace;font-size:.63rem;letter-spacing:.09em;
+      text-transform:uppercase;color:var(--faint);margin:0 0 18px;
+    }
+    footer{margin-top:66px;padding-top:20px;border-top:2px solid var(--ink);
+      font-family:"IBM Plex Mono",monospace;font-size:.66rem;color:var(--faint)}
+    @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">Maquette · écran cible · non contractuel</p>
+  <h1>À quoi ressemblerait l'assistant</h1>
+  <p class="deck">Open WebUI, personnalisé pour Panoptes. La base est une interface de conversation classique — ce qui compte est dans les trois ajouts : le filtre par strate, la cotation portée par chaque citation, et le compteur d'origines distinctes qui désamorce le faux recoupement.</p>
+</header>
+
+<h2>L'écran</h2>
+<p class="sub">Question réelle d'un traitant sur une revendication chaude, confrontée au corpus froid.</p>
+
+<div class="frame">
+  <div class="chrome">
+    <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    <span class="grow">panoptes.local — assistant documentaire</span>
+    <span class="badge-net">réseau isolé</span>
+  </div>
+
+  <div class="app">
+
+    <!-- ░░ RAIL GAUCHE ░░ -->
+    <nav class="side">
+      <p class="brandline">PANOPTES</p>
+      <p class="brandsub">assistant · v0.1</p>
+
+      <p class="grouplabel">Échanges</p>
+      <div class="conv on">Revendication du 29/08</div>
+      <div class="conv">Bandes — comparatif</div>
+      <div class="conv">Note RETEX — brouillon</div>
+
+      <p class="grouplabel">Strates interrogées</p>
+      <div class="filt"><span class="box on"></span><span class="sw f"></span>Principes</div>
+      <div class="filt"><span class="box on"></span><span class="sw f"></span>Technique</div>
+      <div class="filt"><span class="box on"></span><span class="sw t"></span>Doctrine · RETEX</div>
+      <div class="filt"><span class="box on"></span><span class="sw c"></span>Réseaux sociaux</div>
+
+      <p class="grouplabel">Cotation minimale</p>
+      <div class="filt"><span class="cote c-nulle">A–F</span><span class="cote c-nulle">1–6</span></div>
+
+      <p class="grouplabel">Entité</p>
+      <div class="filt" style="font-family:'IBM Plex Mono',monospace;font-size:.68rem">ENT-0412</div>
+    </nav>
+
+    <!-- ░░ CONVERSATION ░░ -->
+    <main class="conve">
+      <div class="msg-user">Plusieurs comptes annoncent une capacité de brouillage étendue sur ENT-0412. Est-ce plausible au regard de ce qu'on sait du matériel ?</div>
+
+      <div class="toolstrip">
+        <span><b>explorer_reseau</b> ( affirmation, profondeur=3 ) → 7 documents, 2 origines</span>
+        <span><b>chercher_documents</b> ( ENT-0412, strates=[principe,technique], cote_max=C3 ) → 11 fragments</span>
+        <span><b>interroger_fiches</b> ( FIC-0207 ) → 1 ligne</span>
+      </div>
+
+      <div class="msg-ai">
+
+        <div class="verdict-box">
+          <div class="verdict-h">Recoupement apparent</div>
+          <div class="origins">
+            <span class="big">7</span><span>documents</span>
+            <span class="arrow">→</span>
+            <span class="big">2</span><span>origines distinctes</span>
+          </div>
+          <p class="note-line">Origine 1 — ACT-0231, le 12/08. Origine 2 — ACT-0417, le 14/08.<br>
+          Cinq documents sont des reprises translinguistiques d'ACT-0231 (RU → EN → FR).<br>
+          <strong>La cotation reste à votre appréciation : le système compte, il ne cote pas.</strong></p>
+        </div>
+
+        <p>La capacité annoncée est <strong>en tension avec la fiche matérielle</strong>. La plage déclarée dans la revendication dépasse celle documentée dans FIC-0207, sans qu'aucune source froide ne mentionne une évolution du matériel.</p>
+
+        <p>Deux lectures se tiennent : soit une évolution non documentée dans le corpus, soit une exagération de la revendication initiale, reprise en chaîne.</p>
+
+        <div class="cite">
+          <span class="ref">FIC-0207</span>
+          <span class="cote c-haute">B2</span>
+          <span class="txt">Fiche matérielle ENT-0412 — plage documentée, source technique, mise à jour 2025-11.</span>
+        </div>
+        <div class="cite">
+          <span class="ref">doc-…-0088</span>
+          <span class="cote c-haute">A2</span>
+          <span class="txt">Principe de propagation — contrainte physique sur la portée utile à cette puissance.</span>
+        </div>
+        <div class="cite">
+          <span class="ref">doc-…-0117</span>
+          <span class="cote c-faible">E5</span>
+          <span class="txt">Revendication initiale — ACT-0231, 12/08. <strong>Origine des 5 reprises.</strong></span>
+        </div>
+        <div class="cite">
+          <span class="ref">doc-…-0402</span>
+          <span class="cote c-moy">C3</span>
+          <span class="txt">Mention indépendante — ACT-0417, 14/08. Formulation distincte, pas de filiation détectée.</span>
+        </div>
+      </div>
+
+      <div class="composer">
+        <span>Poser une question…</span>
+        <span class="send">Envoyer</span>
+      </div>
+    </main>
+
+    <!-- ░░ INSPECTEUR ░░ -->
+    <aside class="insp">
+      <p class="grouplabel" style="margin-top:0">Source sélectionnée</p>
+      <h4>doc-2026-08-12-0117</h4>
+      <dl class="kv">
+        <dt>strate</dt><dd>reseau_social</dd>
+        <dt>acteur</dt><dd>ACT-0231</dd>
+        <dt>date_pub</dt><dd>2026-08-12</dd>
+        <dt>date_collecte</dt><dd>2026-08-13</dd>
+        <dt>langue</dt><dd>ru</dd>
+        <dt>fiabilité</dt><dd>E — non fiable</dd>
+        <dt>véracité</dt><dd>5 — improbable</dd>
+        <dt>entités</dt><dd>ENT-0412</dd>
+      </dl>
+
+      <div class="divider"></div>
+      <p class="grouplabel" style="margin-top:0">Chaîne de propagation</p>
+      <p class="chain">doc-0117  ACT-0231  12/08  ru
+   ├─ doc-0203  ACT-0288  13/08  ru
+   │    └─ doc-0341  ACT-0355  14/08  en
+   ├─ doc-0298  ACT-0301  13/08  uk
+   └─ doc-0377  ACT-0362  15/08  fr
+
+doc-0402  ACT-0417  14/08  en
+   (aucune filiation détectée)</p>
+
+      <div class="divider"></div>
+      <p class="grouplabel" style="margin-top:0">Détection</p>
+      <p style="font-size:.76rem;color:var(--muted);margin:0">Reprises identifiées par similarité d'embedding multilingue — le texte ne partage aucun n‑gramme entre le russe et le français.</p>
+    </aside>
+
+  </div>
+</div>
+<p class="caption">Maquette — les identifiants et le cas sont fabriqués pour l'illustration</p>
+
+<h2>Les cinq éléments qui comptent</h2>
+<p class="sub">Le reste de l'écran est de l'Open WebUI standard. Ces cinq‑là sont les ajouts, et ce sont eux qui font la valeur.</p>
+
+<div class="notes">
+  <div class="ncard key">
+    <h3><span class="pin">01</span>Le compteur d'origines</h3>
+    <p>Le bloc en tête de réponse. Il transforme « sept documents concordants » en « deux origines distinctes ». Sans lui, un RAG amplifie mécaniquement le faux recoupement : plus une affirmation est reprise, plus elle produit de fragments proches, plus la recherche par similarité la remonte.</p>
+  </div>
+  <div class="ncard key">
+    <h3><span class="pin">02</span>Le système ne cote jamais</h3>
+    <p>Il compte les origines et affiche le décompte. La cotation A1 engage — c'est elle qui fait passer une affirmation d'hypothèse à fait. Un modèle qui l'attribue seul produit exactement l'erreur que le dispositif prévient. L'analyste tranche.</p>
+  </div>
+  <div class="ncard">
+    <h3><span class="pin">03</span>La cotation sur chaque citation</h3>
+    <p>Deux caractères, jamais un seul : la fiabilité de la source et la véracité de l'information sont deux axes indépendants. Une source excellente peut rapporter une information invérifiable (A6), une source douteuse peut dire vrai (E1). Le code couleur est un repère, pas un verdict.</p>
+  </div>
+  <div class="ncard">
+    <h3><span class="pin">04</span>Le filtre par strate</h3>
+    <p>À gauche, en permanence visible. Le traitant sait toujours à quoi il interroge le corpus. Une question sur un principe physique ne doit pas ramener de réseaux sociaux — et le filtrage intervient <em>avant</em> le classement, pas après.</p>
+  </div>
+  <div class="ncard">
+    <h3><span class="pin">05</span>Les appels d'outils visibles</h3>
+    <p>Le bandeau pointillé montre ce que le modèle est allé chercher, et où. Un modèle qui cite une ligne de fiche est vérifiable ; un modèle qui paraphrase un fragment retrouvé par similarité ne l'est pas. Rendre le chemin visible, c'est rendre la réponse contestable.</p>
+  </div>
+  <div class="ncard">
+    <h3><span class="pin">06</span>La chaîne de propagation</h3>
+    <p>À droite, l'arbre des reprises avec les langues. C'est la lecture directe du graphe de collecte — deux tables dans PostgreSQL, pas un serveur de plus. C'est aussi ce qui rend le décompte d'origines vérifiable à l'œil.</p>
+  </div>
+</div>
+
+<h2>Si vous la trouvez moche</h2>
+<p class="sub">Open WebUI est modifiable à quatre niveaux. À trois postes, les contraintes de marque de sa licence ne s'appliquent pas : vous pouvez rebrander intégralement.</p>
+
+<div class="lv">
+  <div class="lvc go">
+    <span class="lvn">Niveau 1 · heures</span>
+    <h3>Thème</h3>
+    <p>CSS injecté dans l'image Docker : couleurs, typographie, logo, nom du produit. Versionné avec le reste de la pile.</p>
+    <p class="lvv">Faites‑le tout de suite</p>
+  </div>
+  <div class="lvc go">
+    <span class="lvn">Niveau 2 · jours</span>
+    <h3>Modifications ciblées</h3>
+    <p>Patcher l'affichage des citations pour porter strate, cotation et origines. C'est du SvelteKit, et c'est la seule modification vraiment nécessaire.</p>
+    <p class="lvv">Faites‑le en phase 1</p>
+  </div>
+  <div class="lvc no">
+    <span class="lvn">Niveau 3 · semaines</span>
+    <h3>Fork</h3>
+    <p>Le code est forkable sans restriction depuis la v0.6.5. Vous reprenez la maintenance à votre compte.</p>
+    <p class="lvv">Seulement si le 2 ne suffit pas</p>
+  </div>
+  <div class="lvc no">
+    <span class="lvn">Niveau 4 · mois</span>
+    <h3>Interface maison</h3>
+    <p>L'API est compatible OpenAI, donc techniquement ouvert. Mais une interface écrite avant l'usage code des hypothèses fausses.</p>
+    <p class="lvv">Pas avant d'avoir de l'usage</p>
+  </div>
+</div>
+
+<h2 style="font-size:1.15rem;margin-bottom:8px">Une nuance sur le niveau 1</h2>
+<p style="max-width:68ch;color:var(--muted);margin:0">
+Le thème n'est pas une question d'esthétique, c'est une question d'adoption. Un outil qui a l'air d'appartenir à la maison est utilisé ; un outil qui a l'air d'un prototype de passage ne l'est pas. Quelques heures de CSS, et c'est rentable. Mais gardez l'effort de développement pour le niveau 2 : sans cotation visible à côté de chaque extrait, le dispositif n'existe pas pour l'utilisateur.
+</p>
+
+<footer>Maquette d'écran · non contractuelle · les identifiants, acteurs et le cas d'usage sont fabriqués pour l'illustration</footer>
+
+</div>
+</body>
+</html>

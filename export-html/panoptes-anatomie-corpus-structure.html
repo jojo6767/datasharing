@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="generator" content="Panoptes — export autonome">
+  <style>
+    /* Reset minimal : reproduit l'ossature fournie par le runtime d'artefacts,
+       pour que le fichier se comporte de la meme facon hors de celui-ci. */
+    html{-webkit-text-size-adjust:100%}
+    body{margin:0}
+    img,video{max-width:100%;height:auto}
+    [hidden]{display:none!important}
+  </style>
+  <title>Anatomie d'un corpus structuré</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+  <style>
+    :root{
+      --ground:#F1F3F2; --surface:#FFFFFF; --sheet:#FAFBFA;
+      --ink:#171D1C; --muted:#59635F; --faint:#7C8783;
+      --rule:#D3D9D6; --rule-strong:#B6BFBB;
+      --accent:#0C6B66; --accent-soft:#E1EDEC;
+      --warn:#8F3626; --warn-soft:#F6E7E3;
+      --shadow:0 1px 2px rgba(23,29,28,.05);
+    }
+    @media (prefers-color-scheme: dark){
+      :root:not([data-theme="light"]){
+        --ground:#0F1413; --surface:#161C1B; --sheet:#131918;
+        --ink:#E5EAE8; --muted:#96A19D; --faint:#7A8580;
+        --rule:#293230; --rule-strong:#3A4543;
+        --accent:#54BDB5; --accent-soft:#15302E;
+        --warn:#DC8471; --warn-soft:#33201B;
+        --shadow:0 1px 2px rgba(0,0,0,.3);
+      }
+    }
+    :root[data-theme="dark"]{
+      --ground:#0F1413; --surface:#161C1B; --sheet:#131918;
+      --ink:#E5EAE8; --muted:#96A19D; --faint:#7A8580;
+      --rule:#293230; --rule-strong:#3A4543;
+      --accent:#54BDB5; --accent-soft:#15302E;
+      --warn:#DC8471; --warn-soft:#33201B;
+      --shadow:0 1px 2px rgba(0,0,0,.3);
+    }
+
+    *{box-sizing:border-box}
+    body{
+      margin:0;background:var(--ground);color:var(--ink);
+      font-family:"Source Serif 4",Georgia,serif;font-size:17px;line-height:1.62;
+      font-optical-sizing:auto;
+    }
+    .wrap{max-width:1080px;margin:0 auto;padding:0 26px 110px}
+
+    header.top{padding:60px 0 26px;border-bottom:2px solid var(--ink)}
+    .eyebrow{
+      font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.13em;
+      text-transform:uppercase;color:var(--accent);margin:0 0 14px;
+    }
+    header.top h1{
+      font-family:Archivo,sans-serif;font-weight:700;
+      font-size:clamp(2rem,4.6vw,3rem);line-height:1.03;letter-spacing:-.022em;
+      margin:0;max-width:17ch;text-wrap:balance;
+    }
+    .deck{color:var(--muted);max-width:64ch;margin:20px 0 0;font-size:1.05rem}
+
+    /* family sections */
+    .fam{border-top:1px solid var(--rule);margin-top:56px;padding-top:44px}
+    .fam-head{display:grid;grid-template-columns:112px minmax(0,1fr);gap:0 34px;margin-bottom:22px}
+    .fam-num{
+      font-family:"IBM Plex Mono",monospace;color:var(--accent);
+      font-size:1.35rem;font-weight:600;line-height:1;
+    }
+    .fam-lab{
+      font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.1em;
+      text-transform:uppercase;color:var(--faint);margin-top:6px;
+    }
+    .fam h2{
+      font-family:Archivo,sans-serif;font-weight:600;font-size:clamp(1.4rem,2.6vw,1.9rem);
+      line-height:1.14;letter-spacing:-.014em;margin:0 0 8px;text-wrap:balance;
+    }
+    .fam-q{color:var(--muted);margin:0;max-width:62ch;font-size:1.01rem}
+
+    .cards{display:grid;gap:14px}
+    @media(min-width:800px){.cards{grid-template-columns:1fr 1fr}}
+    .card{
+      background:var(--surface);border:1px solid var(--rule);
+      padding:17px 20px;display:flex;flex-direction:column;gap:8px;
+      box-shadow:var(--shadow);
+    }
+    .card.star{border-left:3px solid var(--accent)}
+    .card.avoid{border-left:3px solid var(--warn)}
+    .card h3{
+      font-family:Archivo,sans-serif;font-size:1.02rem;font-weight:600;margin:0;
+      display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    }
+    .chip{
+      font-family:"IBM Plex Mono",monospace;font-size:.58rem;letter-spacing:.09em;
+      text-transform:uppercase;padding:2px 7px;border:1px solid;white-space:nowrap;font-weight:600;
+    }
+    .v-do{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+    .v-later{color:var(--faint);border-color:var(--rule-strong)}
+    .v-avoid{color:var(--warn);border-color:var(--warn);background:var(--warn-soft)}
+    .oneline{
+      font-family:Archivo,sans-serif;font-size:.9rem;font-weight:600;
+      color:var(--ink);margin:0;line-height:1.4;
+    }
+    .card p{margin:0;font-size:.92rem;color:var(--muted)}
+    .chez{
+      margin-top:auto;padding-top:9px;border-top:1px dashed var(--rule);
+      font-size:.88rem;color:var(--ink);
+    }
+    .chez b{
+      font-family:Archivo,sans-serif;font-size:.66rem;letter-spacing:.08em;
+      text-transform:uppercase;color:var(--faint);display:block;margin-bottom:2px;font-weight:600;
+    }
+
+    /* generic blocks */
+    h3.free{
+      font-family:Archivo,sans-serif;font-weight:600;font-size:1.1rem;
+      margin:34px 0 10px;text-wrap:balance;
+    }
+    p.body{max-width:68ch;margin:0 0 15px}
+    .sheet{background:var(--sheet);border:1px solid var(--rule-strong);margin:22px 0}
+    .sheet-label{
+      font-family:"IBM Plex Mono",monospace;font-size:.62rem;letter-spacing:.11em;
+      text-transform:uppercase;color:var(--faint);padding:9px 15px;
+      border-bottom:1px dashed var(--rule);display:flex;justify-content:space-between;gap:16px;
+    }
+    .sheet pre{
+      margin:0;padding:19px 15px;overflow-x:auto;
+      font-family:"IBM Plex Mono",monospace;font-size:.72rem;line-height:1.55;color:var(--ink);
+    }
+    .note{background:var(--accent-soft);border:1px solid var(--rule);padding:16px 20px;margin:20px 0;font-size:.97rem}
+    .note.caution{background:var(--warn-soft)}
+    .note p{margin:0;max-width:70ch}
+    .tw{overflow-x:auto;margin:22px 0;border:1px solid var(--rule);background:var(--surface)}
+    table{border-collapse:collapse;width:100%;font-size:.88rem;min-width:520px}
+    caption{
+      caption-side:top;text-align:left;font-family:"IBM Plex Mono",monospace;
+      font-size:.63rem;letter-spacing:.11em;text-transform:uppercase;color:var(--faint);
+      padding:11px 15px;border-bottom:1px dashed var(--rule);
+    }
+    th,td{padding:10px 15px;text-align:left;vertical-align:top;border-bottom:1px solid var(--rule)}
+    thead th{
+      font-family:Archivo,sans-serif;font-size:.72rem;font-weight:600;letter-spacing:.05em;
+      text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--rule-strong);white-space:nowrap;
+    }
+    tbody tr:last-child td{border-bottom:0}
+    tbody th{font-family:Archivo,sans-serif;font-weight:600;font-size:.86rem}
+    .hi{color:var(--accent);font-weight:600}
+    .no{color:var(--warn)}
+    code{font-family:"IBM Plex Mono",monospace;font-size:.86em}
+
+    ol.steps{counter-reset:s;list-style:none;padding:0;margin:20px 0;max-width:70ch}
+    ol.steps li{counter-increment:s;position:relative;padding-left:44px;margin-bottom:16px}
+    ol.steps li::before{
+      content:counter(s,decimal-leading-zero);position:absolute;left:0;top:.2em;
+      font-family:"IBM Plex Mono",monospace;font-size:.72rem;color:var(--accent);font-weight:600;
+    }
+    ol.steps b{font-family:Archivo,sans-serif;font-size:.95rem}
+
+    .conf{display:grid;gap:12px;margin:20px 0}
+    @media(min-width:800px){.conf{grid-template-columns:1fr 1fr}}
+    .cf{background:var(--surface);border:1px solid var(--rule);padding:14px 18px}
+    .cf p{margin:0;font-size:.9rem;color:var(--muted)}
+    .cf .x{color:var(--warn);font-weight:600;font-family:Archivo,sans-serif;font-size:.9rem;display:block;margin-bottom:4px}
+
+    footer{
+      margin-top:66px;padding-top:20px;border-top:2px solid var(--ink);
+      font-family:"IBM Plex Mono",monospace;font-size:.66rem;color:var(--faint);
+    }
+    @media(max-width:720px){
+      body{font-size:16px}
+      .wrap{padding:0 20px 80px}
+      .fam-head{grid-template-columns:1fr;gap:6px}
+      .fam-num{font-size:1rem}
+    }
+    @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">Annexe à la note d'architecture Panoptes</p>
+  <h1>Anatomie d'un corpus structuré</h1>
+  <p class="deck">Référentiel, taxonomie, ontologie, graphe, thésaurus, embedding : ces mots circulent ensemble et désignent des choses très différentes. Voici ce que chacun veut dire, comment ils s'emboîtent, et lesquels vous devez réellement construire.</p>
+</header>
+
+<div class="note">
+  <p><strong>La règle de lecture.</strong> Ces objets forment un empilement : chacun ne fonctionne que si celui du dessous existe. On ne fait pas d'ontologie sans référentiel, on ne fait pas de référentiel sans métadonnées. <strong>L'erreur classique est de commencer par le haut</strong> — c'est plus intellectuellement satisfaisant, et ça ne produit rien.</p>
+</div>
+
+<!-- ═══ FAMILLE I ═══ -->
+<section class="fam">
+  <div class="fam-head">
+    <div><div class="fam-num">I</div><div class="fam-lab">Famille</div></div>
+    <div>
+      <h2>Nommer</h2>
+      <p class="fam-q">Quels mots emploie‑t‑on, et comment sait‑on que deux mots désignent la même chose ?</p>
+    </div>
+  </div>
+  <div class="cards">
+
+    <div class="card">
+      <h3>Glossaire <span class="chip v-later">accessoire</span></h3>
+      <p class="oneline">Une liste de termes avec leur définition.</p>
+      <p>Écrit pour des humains. Pas d'identifiants, pas de structure exploitable par une machine. C'est de la documentation, pas de l'infrastructure.</p>
+      <p class="chez"><b>Chez vous</b>Utile pour former les traitants. Ne sert pas le système.</p>
+    </div>
+
+    <div class="card">
+      <h3>Nomenclature <span class="chip v-later">existante</span></h3>
+      <p class="oneline">Les règles de formation des noms.</p>
+      <p>Ce n'est pas une liste mais une grammaire : les index GRAU, les désignations OTAN, les codes de série obéissent à des règles de construction. Connaître la règle permet de reconnaître un nom jamais rencontré.</p>
+      <p class="chez"><b>Chez vous</b>Elles préexistent. Vous les subissez, vous ne les créez pas.</p>
+    </div>
+
+    <div class="card">
+      <h3>Vocabulaire contrôlé <span class="chip v-do">phase 1</span></h3>
+      <p class="oneline">Une liste fermée de termes autorisés.</p>
+      <p>On n'écrit pas ce qu'on veut, on choisit dans la liste. C'est ce qui empêche que le même champ contienne « brouilleur », « jammer », « EW jammer » et « brouilleur de comm ».</p>
+      <p class="chez"><b>Chez vous</b>Les valeurs de <code>strate</code>, <code>type</code>, <code>langue</code> dans le manifeste. Vous en faites déjà sans le nommer.</p>
+    </div>
+
+    <div class="card star">
+      <h3>Référentiel d'entités <span class="chip v-do">pièce maîtresse</span></h3>
+      <p class="oneline">La liste des <em>choses</em> dont le corpus parle, chacune avec un identifiant stable et tous ses noms.</p>
+      <p>Différence avec le vocabulaire contrôlé : ici les termes ne sont pas des catégories mais des individus du monde réel — ce matériel‑là, cette unité‑là, ce compte‑là. Et chacun rassemble ses alias.</p>
+      <p class="chez"><b>Chez vous</b><code>ENT-0412</code> rassemble R‑330Zh, R‑330Ж, Житель, Zhitel, Jitel. Deux à trois jours de travail, le meilleur euro du projet.</p>
+    </div>
+
+    <div class="card">
+      <h3>Thésaurus <span class="chip v-later">plus tard</span></h3>
+      <p class="oneline">Un vocabulaire contrôlé enrichi de relations entre termes.</p>
+      <p>Trois relations canoniques : synonymie (« équivalent à »), hiérarchie (« terme plus large / plus étroit ») et association (« voir aussi »). C'est l'ancêtre documentaire du graphe.</p>
+      <p class="chez"><b>Chez vous</b>Le référentiel avec ses alias en fait déjà 80 %. N'allez pas plus loin sans besoin démontré.</p>
+    </div>
+
+    <div class="card star">
+      <h3>Résolution d'entités <span class="chip v-do">continu</span></h3>
+      <p class="oneline">Le travail qui décide que deux mentions désignent la même chose.</p>
+      <p>Ce n'est pas un objet mais un processus. C'est lui qui alimente le référentiel : à chaque ingestion, il faut rattacher les nouvelles mentions aux entités connues, ou en créer une.</p>
+      <p class="chez"><b>Chez vous</b>Le petit modèle propose, l'humain arbitre. Quelques minutes par lot une fois amorcé.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══ FAMILLE II ═══ -->
+<section class="fam">
+  <div class="fam-head">
+    <div><div class="fam-num">II</div><div class="fam-lab">Famille</div></div>
+    <div>
+      <h2>Classer</h2>
+      <p class="fam-q">Comment range‑t‑on les choses les unes par rapport aux autres ?</p>
+    </div>
+  </div>
+  <div class="cards">
+
+    <div class="card">
+      <h3>Taxonomie <span class="chip v-do">version légère</span></h3>
+      <p class="oneline">Un classement en arbre : chaque chose a une place, et une seule.</p>
+      <p>« Brouilleur → brouilleur de communications → brouilleur HF ». Simple et lisible, mais rigide : dès qu'une chose relève de deux branches, l'arbre casse ou se duplique.</p>
+      <p class="chez"><b>Chez vous</b>Une liste plate d'une dizaine de types d'entités suffit. <strong>Ne construisez pas d'arbre profond</strong> — vous y passeriez des semaines pour un gain nul.</p>
+    </div>
+
+    <div class="card star">
+      <h3>Facettes <span class="chip v-do">déjà en place</span></h3>
+      <p class="oneline">Plusieurs axes de classement indépendants, appliqués en même temps.</p>
+      <p>Au lieu d'un arbre unique, on décrit chaque chose sur plusieurs dimensions : type × bande × plateforme × pays × strate. Beaucoup plus souple qu'une taxonomie, et c'est presque toujours ce dont on a réellement besoin.</p>
+      <p class="chez"><b>Chez vous</b>Strate, cotation, langue, entité, fenêtre de dates : <strong>votre filtrage est déjà à facettes.</strong> C'est le bon choix, il a juste besoin d'être nommé.</p>
+    </div>
+
+    <div class="card avoid">
+      <h3>Ontologie <span class="chip v-avoid">à éviter</span></h3>
+      <p class="oneline">Un modèle formel des <em>types</em> de choses, de leurs propriétés et des relations possibles, avec des règles logiques permettant d'inférer.</p>
+      <p>Elle ne dit pas « voici les brouilleurs connus » mais « un brouilleur est un émetteur qui possède une bande et s'oppose à un récepteur ; donc si X emploie Y et Y est un brouilleur, alors X a une capacité de brouillage ». C'est un modèle du monde exprimé en logique, capable de déduire des faits non écrits.</p>
+      <p class="chez"><b>Chez vous</b>Effort considérable pour un bénéfice non démontré à votre échelle. Une ontologie se justifie quand plusieurs organisations doivent partager un modèle commun, ou quand on veut de l'inférence automatique auditée. Vous n'êtes ni dans l'un ni dans l'autre.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══ FAMILLE III ═══ -->
+<section class="fam">
+  <div class="fam-head">
+    <div><div class="fam-num">III</div><div class="fam-lab">Famille</div></div>
+    <div>
+      <h2>Relier</h2>
+      <p class="fam-q">Qu'est‑ce qui tient à quoi, et par quel chemin ?</p>
+    </div>
+  </div>
+  <div class="cards">
+
+    <div class="card">
+      <h3>Graphe <span class="chip v-do">phase 1</span></h3>
+      <p class="oneline">Des nœuds reliés par des arêtes. Une structure de données, rien de plus.</p>
+      <p>Le mot ne dit rien du contenu. Un plan de métro est un graphe, un arbre généalogique aussi. Ce qui compte, c'est ce que représentent les nœuds et les arêtes.</p>
+      <p class="chez"><b>Chez vous</b>Deux tables PostgreSQL — une de nœuds, une d'arêtes — et des requêtes récursives. Pas de serveur graphe.</p>
+    </div>
+
+    <div class="card star">
+      <h3>Graphe de collecte <span class="chip v-do">phase 1</span></h3>
+      <p class="oneline">Le graphe des publications et de leurs reprises.</p>
+      <p>Nœuds : documents, comptes, médias. Arêtes : publie, reprend, cite, répond. <strong>Cette information est native</strong> — connue au moment de la collecte, et perdue ensuite.</p>
+      <p class="chez"><b>Chez vous</b>C'est ce qui permet de compter les <em>origines</em> et non les documents, donc de détecter le faux recoupement. Non négociable.</p>
+    </div>
+
+    <div class="card">
+      <h3>Graphe de connaissances <span class="chip v-later">différé</span></h3>
+      <p class="oneline">Un graphe dont les nœuds sont les entités du référentiel et les arêtes des relations typées par une ontologie.</p>
+      <p>C'est la combinaison des trois familles précédentes : nommer (référentiel) + classer (types de relations) + relier (graphe). D'où son coût : il suppose les deux autres.</p>
+      <p class="chez"><b>Chez vous</b>Différé sur déclencheur : quand le jeu d'évaluation révèle des questions à sauts multiples que la recherche filtrée échoue systématiquement à traiter.</p>
+    </div>
+
+    <div class="card avoid">
+      <h3>Triplet, RDF, SPARQL <span class="chip v-avoid">à éviter</span></h3>
+      <p class="oneline">La forme canonique d'une arête — sujet, prédicat, objet — et l'écosystème technique bâti autour.</p>
+      <p>« ENT‑0412 — emploie_la_bande — UHF ». Standard puissant, mais qui traîne une pile logicielle lourde et une courbe d'apprentissage forte.</p>
+      <p class="chez"><b>Chez vous</b>Deux colonnes dans une table font la même chose pour vos volumes. Gardez le concept, laissez la technologie.</p>
+    </div>
+
+    <div class="card">
+      <h3>Propriété contre relation <span class="chip v-do">à trancher tôt</span></h3>
+      <p class="oneline">Une propriété décrit une chose ; une relation relie deux choses.</p>
+      <p>« Bande de fréquence » est une propriété tant qu'elle n'est qu'une valeur. Elle devient une relation le jour où « bande UHF » devient elle‑même une entité qu'on veut interroger.</p>
+      <p class="chez"><b>Chez vous</b>Gardez les caractéristiques en propriétés — donc dans la base relationnelle. N'en faites des entités que si vous voulez poser la question « qu'est‑ce qui d'autre opère sur cette bande ».</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══ FAMILLE IV ═══ -->
+<section class="fam">
+  <div class="fam-head">
+    <div><div class="fam-num">IV</div><div class="fam-lab">Famille</div></div>
+    <div>
+      <h2>Retrouver</h2>
+      <p class="fam-q">Comment remet‑on la main sur le bon passage au bon moment ?</p>
+    </div>
+  </div>
+  <div class="cards">
+
+    <div class="card">
+      <h3>Fragment <span class="chip v-do">phase 1</span></h3>
+      <p class="oneline">Le morceau de document qu'on indexe et qu'on remonte.</p>
+      <p>On n'indexe pas un document entier : trop gros pour le contexte du modèle, trop imprécis pour la recherche. On le découpe. La qualité du découpage décide de la qualité des réponses.</p>
+      <p class="chez"><b>Chez vous</b>Découpage par titre grâce au markdown — des fragments qui correspondent à des unités de sens, pas à des comptes de caractères.</p>
+    </div>
+
+    <div class="card">
+      <h3>Index lexical <span class="chip v-do">phase 1</span></h3>
+      <p class="oneline">Un dictionnaire inversé : quel mot apparaît dans quels fragments.</p>
+      <p>Rapide, exact, totalement aveugle au sens. Cherchez « Zhitel », vous trouverez « Zhitel » — et rien d'autre. C'est une force autant qu'une limite.</p>
+      <p class="chez"><b>Chez vous</b>Indispensable pour les désignations exactes, les numéros, les codes.</p>
+    </div>
+
+    <div class="card">
+      <h3>Embedding <span class="chip v-do">phase 1</span></h3>
+      <p class="oneline">Une représentation numérique du sens d'un texte, sous forme de liste de nombres.</p>
+      <p>Deux textes de sens voisin ont des listes voisines, même sans partager un seul mot. C'est ce qui permet de retrouver un passage en russe à partir d'une question en français.</p>
+      <p class="chez"><b>Chez vous</b>BGE‑M3, multilingue. C'est aussi lui qui détecte les reprises traduites.</p>
+    </div>
+
+    <div class="card">
+      <h3>Index vectoriel <span class="chip v-do">phase 1</span></h3>
+      <p class="oneline">La base qui range les embeddings et retrouve les plus proches.</p>
+      <p>Sensible au sens, insensible à l'exactitude : il ramènera un passage « sur le même sujet » plutôt que « contenant exactement ce mot ». D'où la nécessité de le compléter.</p>
+      <p class="chez"><b>Chez vous</b>Qdrant, choisi pour son filtrage par métadonnées avant classement.</p>
+    </div>
+
+    <div class="card star">
+      <h3>Recherche hybride <span class="chip v-do">phase 1</span></h3>
+      <p class="oneline">Les deux index interrogés ensemble, leurs résultats fusionnés.</p>
+      <p>Le lexical rattrape ce que le vectoriel manque (une désignation rare) ; le vectoriel rattrape ce que le lexical manque (une reformulation, une traduction). Chacun couvre l'angle mort de l'autre.</p>
+      <p class="chez"><b>Chez vous</b>C'est le mode nominal. Ni l'un ni l'autre seul ne suffit sur un corpus multilingue.</p>
+    </div>
+
+    <div class="card">
+      <h3>Réordonnanceur <span class="chip v-do">phase 1</span></h3>
+      <p class="oneline">Un petit modèle qui relit les cinquante premiers résultats et les reclasse finement.</p>
+      <p>La recherche est rapide et grossière ; le réordonnanceur est lent et précis. On l'applique donc à un petit nombre de candidats. C'est lui qui empêche un post de réseau social de passer devant un manuel technique.</p>
+      <p class="chez"><b>Chez vous</b>bge‑reranker‑v2‑m3. Gain de pertinence très supérieur à son coût de calcul.</p>
+    </div>
+
+    <div class="card">
+      <h3>RAG <span class="chip v-do">c'est le système</span></h3>
+      <p class="oneline">Le schéma complet : on cherche dans le corpus, on injecte les passages trouvés dans le contexte du modèle, il répond à partir d'eux.</p>
+      <p>Le modèle ne « connaît » pas votre corpus : on le lui donne à lire à chaque question. D'où l'importance capitale de ce qu'on lui donne — et de ce qu'on lui refuse.</p>
+      <p class="chez"><b>Chez vous</b>C'est tout le dispositif. Sa qualité dépend du filtrage bien plus que du modèle.</p>
+    </div>
+
+    <div class="card">
+      <h3>GraphRAG <span class="chip v-later">plus tard</span></h3>
+      <p class="oneline">Une variante où la recherche passe aussi par le graphe, pas seulement par la similarité.</p>
+      <p>Permet de répondre à des questions de chemin — « qu'est‑ce qui relie A à B » — que la recherche par similarité ne sait pas traiter, parce que la réponse n'est écrite dans aucun document isolé.</p>
+      <p class="chez"><b>Chez vous</b>Votre outil <code>explorer_reseau</code> en est une forme minimale et suffisante.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══ FAMILLE V ═══ -->
+<section class="fam">
+  <div class="fam-head">
+    <div><div class="fam-num">V</div><div class="fam-lab">Famille</div></div>
+    <div>
+      <h2>Décrire</h2>
+      <p class="fam-q">Que sait‑on du document lui‑même, indépendamment de ce qu'il raconte ?</p>
+    </div>
+  </div>
+  <div class="cards">
+
+    <div class="card">
+      <h3>Métadonnée <span class="chip v-do">fondation</span></h3>
+      <p class="oneline">Une donnée sur la donnée.</p>
+      <p>Pas le contenu du document, mais ce qu'on sait de lui : d'où il vient, quand, de qui, dans quelle langue, avec quelle fiabilité.</p>
+      <p class="chez"><b>Chez vous</b>C'est la couche la plus basse de l'empilement, et la seule vraiment irrattrapable.</p>
+    </div>
+
+    <div class="card">
+      <h3>Schéma <span class="chip v-do">cette semaine</span></h3>
+      <p class="oneline">La définition de quels champs existent et quelles valeurs ils acceptent.</p>
+      <p>Sans schéma, chacun remplit ce qu'il veut comme il veut, et le filtrage devient impossible. Le schéma est ce qui rend les métadonnées exploitables plutôt que décoratives.</p>
+      <p class="chez"><b>Chez vous</b>Le format de manifeste à figer avec la TF EYLAU.</p>
+    </div>
+
+    <div class="card star">
+      <h3>Enveloppe, manifeste <span class="chip v-do">cette semaine</span></h3>
+      <p class="oneline">Le jeu de métadonnées effectivement attaché à chaque document, et le fichier qui les transporte.</p>
+      <p>L'enveloppe est la fiche d'identité ; le manifeste est le bordereau qui les rassemble pour un lot. C'est ce qui traverse la rupture avec le contenu.</p>
+      <p class="chez"><b>Chez vous</b>Ce qui n'y figure pas au moment du franchissement est perdu définitivement.</p>
+    </div>
+
+    <div class="card">
+      <h3>Provenance <span class="chip v-do">phase 1</span></h3>
+      <p class="oneline">La traçabilité : d'où vient l'information et par quelle chaîne elle est arrivée.</p>
+      <p>Plus fort que « la source » : la provenance décrit le <em>trajet</em>. Un document repris quatre fois a une source immédiate et une origine, qui ne sont pas la même chose.</p>
+      <p class="chez"><b>Chez vous</b><code>origine_declaree</code> et <code>relations_collecte</code>. C'est la matière première de la détection de faux recoupement.</p>
+    </div>
+
+    <div class="card">
+      <h3>Cotation <span class="chip v-do">cette semaine</span></h3>
+      <p class="oneline">Le jugement porté sur la source et sur l'information, en deux caractères indépendants.</p>
+      <p>Une lettre pour la fiabilité de la source, un chiffre pour la véracité de l'information. Ce n'est pas une métadonnée descriptive mais une métadonnée <em>évaluative</em> : elle engage celui qui la pose.</p>
+      <p class="chez"><b>Chez vous</b>Posée à la collecte, par qui connaît la source. Reconstituée six mois plus tard, elle ne vaut rien.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══ ARTICULATION ═══ -->
+<section class="fam">
+  <div class="fam-head">
+    <div><div class="fam-num">VI</div><div class="fam-lab">Synthèse</div></div>
+    <div>
+      <h2>Comment tout cela s'emboîte</h2>
+      <p class="fam-q">Chaque étage repose sur celui du dessous. On construit de bas en haut, jamais l'inverse.</p>
+    </div>
+  </div>
+
+  <div class="sheet">
+    <div class="sheet-label"><span>L'empilement</span><span>du plus fondamental au plus élaboré</span></div>
+<pre>  ┌──────────────────────────────────────────────────────────┐
+  │  ONTOLOGIE — règles logiques, inférence                   │  ← à éviter
+  ├──────────────────────────────────────────────────────────┤
+  │  GRAPHE SÉMANTIQUE — relations typées entre entités       │  ← différé
+  ├──────────────────────────────────────────────────────────┤
+  │  GRAPHE DE COLLECTE — qui publie, qui reprend             │  ← phase 1
+  ├──────────────────────────────────────────────────────────┤
+  │  RÉFÉRENTIEL D'ENTITÉS — les choses, leurs identifiants   │  ← phase 1
+  │  et tous leurs alias         ▲ résolution d'entités       │
+  ├──────────────────────────────────────────────────────────┤
+  │  FACETTES — strate · cotation · langue · entité · dates   │  ← phase 1
+  ├──────────────────────────────────────────────────────────┤
+  │  INDEX — lexical + vectoriel + réordonnanceur             │  ← phase 1
+  ├──────────────────────────────────────────────────────────┤
+  │  FRAGMENTS — découpage par titre                          │  ← phase 1
+  ├──────────────────────────────────────────────────────────┤
+  │  ENVELOPPE DE MÉTADONNÉES — schéma, provenance, cotation  │  ← cette semaine
+  ├──────────────────────────────────────────────────────────┤
+  │  DOCUMENTS — markdown, images, médias                     │
+  └──────────────────────────────────────────────────────────┘
+
+     Chaque étage n'a de sens que si celui du dessous existe.
+     L'ontologie sans référentiel ne décrit rien.
+     Le référentiel sans enveloppe ne se rattache à rien.</pre>
+  </div>
+
+  <div class="note caution">
+    <p><strong>L'erreur classique.</strong> Commencer par le haut est intellectuellement séduisant : modéliser le monde avant de le peupler donne le sentiment de maîtriser le sujet. En pratique on produit un schéma élégant que rien n'alimente, et on découvre six mois plus tard que les relations modélisées ne sont pas celles dont on avait besoin. <strong>Les étages du haut se recalculent ; ceux du bas, non.</strong></p>
+  </div>
+
+  <h3 class="free">Le parcours d'un document, étage par étage</h3>
+  <p class="body">Un post en russe du 14 août arrive dans un lot. Voici ce que chaque couche lui fait.</p>
+  <ol class="steps">
+    <li><b>Enveloppe.</b> Il reçoit son identité : identifiant, source, acteur <code>ACT-0231</code>, date de publication et date de collecte distinctes, cotation <code>C3</code>, langue <code>ru</code>. Sans cette étape, tout le reste est impossible.</li>
+    <li><b>Résolution d'entités.</b> Le petit modèle repère « Житель », propose un rattachement, l'humain confirme <code>ENT-0412</code>. Le document est désormais retrouvable par une question posée en français.</li>
+    <li><b>Fragmentation.</b> Le texte est découpé par titres ; chaque fragment garde le chemin complet de sa section.</li>
+    <li><b>Indexation.</b> Chaque fragment entre dans l'index lexical et reçoit un embedding dans l'index vectoriel.</li>
+    <li><b>Facettes.</b> Il devient filtrable : strate chaude, cotation C3, langue ru, entité ENT‑0412, date du 14 août.</li>
+    <li><b>Graphe de collecte.</b> On enregistre les arêtes <code>reprise_de → doc-0117</code> et <code>publie_par → ACT-0231</code>.</li>
+    <li><b>À la question posée.</b> Le filtrage le retient ou l'écarte selon la strate demandée ; la recherche hybride le remonte ou non ; le réordonnanceur le classe ; et le graphe dit qu'il n'est <strong>pas une source indépendante</strong>. C'est cette dernière information qui fait la valeur du dispositif — et elle vient de l'étage le plus bas.</li>
+  </ol>
+</section>
+
+<!-- ═══ DÉCISION ═══ -->
+<section class="fam">
+  <div class="fam-head">
+    <div><div class="fam-num">VII</div><div class="fam-lab">Décision</div></div>
+    <div>
+      <h2>Ce que vous devez faire</h2>
+      <p class="fam-q">Le tableau de tri, concept par concept.</p>
+    </div>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Concept</th><th>Verdict</th><th>Quand</th><th>Pourquoi</th></tr></thead>
+      <tbody>
+        <tr><th>Enveloppe de métadonnées</th><td class="hi">Indispensable</td><td>Cette semaine</td><td>Irrattrapable : ce qui n'est pas écrit au franchissement est perdu</td></tr>
+        <tr><th>Schéma et cotation</th><td class="hi">Indispensable</td><td>Cette semaine</td><td>Figurent au format de lot, donc à arrêter avant la collecte</td></tr>
+        <tr><th>Référentiel d'entités</th><td class="hi">Indispensable</td><td>Phase 1 — 2 à 3 j</td><td>Porte le rappel multilingue et pose les nœuds du graphe futur</td></tr>
+        <tr><th>Résolution d'entités</th><td class="hi">Indispensable</td><td>Continu</td><td>C'est le travail de regroupement des alias, jamais automatisable entièrement</td></tr>
+        <tr><th>Fragments, index, réordonnanceur</th><td class="hi">Indispensable</td><td>Phase 1</td><td>C'est le RAG lui‑même</td></tr>
+        <tr><th>Facettes</th><td class="hi">Indispensable</td><td>Phase 1</td><td>Votre filtrage par strate et cotation — vous en faites déjà sans le nommer</td></tr>
+        <tr><th>Graphe de collecte</th><td class="hi">Indispensable</td><td>Phase 1 à 2</td><td>Détection du faux recoupement ; données natives et périssables</td></tr>
+        <tr><th>Taxonomie des types</th><td>Utile, léger</td><td>Phase 1</td><td>Une liste plate d'une dizaine de types. Pas d'arbre profond.</td></tr>
+        <tr><th>Vocabulaire contrôlé</th><td>Utile</td><td>Phase 1</td><td>Les valeurs autorisées des champs du manifeste</td></tr>
+        <tr><th>Thésaurus</th><td>Optionnel</td><td>Si besoin démontré</td><td>Le référentiel avec alias en fait l'essentiel</td></tr>
+        <tr><th>Graphe sémantique</th><td>Différé</td><td>Sur déclencheur</td><td>Coûteux, et vous ne savez pas encore quelles relations modéliser</td></tr>
+        <tr><th>GraphRAG</th><td>Différé</td><td>Avec le précédent</td><td>Suppose le graphe sémantique</td></tr>
+        <tr><th>Ontologie formelle</th><td class="no">À éviter</td><td>—</td><td>Se justifie pour partager un modèle entre organisations ou pour de l'inférence auditée. Vous n'êtes ni dans l'un ni dans l'autre.</td></tr>
+        <tr><th>RDF, SPARQL, triplestore</th><td class="no">À éviter</td><td>—</td><td>Pile lourde, courbe d'apprentissage forte, gain marginal à vos volumes</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══ CONFUSIONS ═══ -->
+<section class="fam">
+  <div class="fam-head">
+    <div><div class="fam-num">VIII</div><div class="fam-lab">Repères</div></div>
+    <div>
+      <h2>Cinq confusions à ne pas faire</h2>
+      <p class="fam-q">Ce sont elles qui font dériver les projets.</p>
+    </div>
+  </div>
+  <div class="conf">
+    <div class="cf"><span class="x">Taxonomie ≠ ontologie</span><p>Une taxonomie range des choses dans des cases. Une ontologie définit ce qu'<em>est</em> une case et ce qu'on peut en déduire. Le second coûte dix fois le premier.</p></div>
+    <div class="cf"><span class="x">Graphe ≠ graphe de connaissances</span><p>Un graphe est une structure. Un graphe de connaissances est un graphe dont les nœuds sont des entités identifiées et les arêtes des relations typées. Le mot « graphe » seul ne vous engage à rien.</p></div>
+    <div class="cf"><span class="x">Référentiel ≠ glossaire</span><p>Un glossaire définit des <em>mots</em> pour des humains. Un référentiel identifie des <em>choses</em> pour une machine, avec un identifiant qui ne change jamais.</p></div>
+    <div class="cf"><span class="x">Embedding ≠ recherche exacte</span><p>Un embedding trouve ce qui « parle de la même chose ». Il ne garantit pas de trouver un numéro de série précis. D'où la recherche hybride.</p></div>
+    <div class="cf"><span class="x">Métadonnée ≠ contenu</span><p>La cotation d'un document n'est pas dans son texte. Elle est portée par l'enveloppe, elle vient d'un humain, et aucun modèle ne peut la reconstituer après coup.</p></div>
+    <div class="cf"><span class="x">Structurer ≠ compliquer</span><p>Tout ce qui précède tient dans deux fichiers tabulaires et deux tables de base. La complexité vient de la discipline d'usage, pas de l'outillage.</p></div>
+  </div>
+</section>
+
+<footer>Annexe à la note d'architecture Panoptes · révision 4 · 30 août 2026</footer>
+
+</div>
+</body>
+</html>
