@@ -1,0 +1,5 @@
+# Archives derivees : le contenu de vault-panoptes/ est versionne en markdown,
+# le .zip n'est qu'un paquet de transport regenerable par
+#   zip -r vault-panoptes.zip vault-panoptes
+vault-panoptes.zip
+*.zip
